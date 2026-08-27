@@ -8,7 +8,7 @@
 
 * { box-sizing: border-box; user-select: none; }
 html { color-scheme: dark; }
-body { margin: 0; min-width: 320px; min-height: 100vh; overflow: hidden; background: #09090b; }
+body { margin: 0; min-width: 320px; min-height: 100vh; overflow: auto; background: #09090b; }
 button, input { font: inherit; }
 button { cursor: pointer; }
 input, textarea, [contenteditable="true"], .select-text { user-select: text; }
@@ -16,7 +16,3 @@ input, textarea, [contenteditable="true"], .select-text { user-select: text; }
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button { appearance: none; margin: 0; }
 input[type="number"] { appearance: textfield; }
-
-@media (max-width: 650px) {
-  body { overflow: auto; }
-}

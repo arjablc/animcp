@@ -10,17 +10,17 @@ import { PropertiesPanel } from "./PropertiesPanel";
 import { TimelinePanel } from "./TimelinePanel";
 import { ResizeHandle } from "../atoms/ResizeHandle";
 
-export function EditorShell({ project, onSave }: { project: Project; onSave: (layers: Layer[]) => void }) {
-  const [layers, setLayers] = useState(project.layers);
+export function EditorShell({ project, onSave, onRename }: { project: Project; onSave: (layers: Layer[]) => void; onRename: (name: string) => void }) {
+  const [layers, setLayers] = useState(() => project.layers.map((layer) => ({ ...layer, inTimeline: layer.inTimeline ?? ["orb", "wave", "title"].includes(layer.id) })));
   const [selected, setSelected] = useState("wave");
   const [zoom, setZoom] = useState(72);
   const [time, setTime] = useState(1.27);
   const [playing, setPlaying] = useState(false);
-  const [desktop, setDesktop] = useState(() => window.matchMedia("(min-width: 901px)").matches);
+  const [desktop, setDesktop] = useState(() => window.matchMedia("(min-width: 1024px)").matches);
   const selectedLayer = layers.find((layer) => layer.id === selected) ?? layers[0];
 
   useEffect(() => {
-    const media = window.matchMedia("(min-width: 901px)");
+    const media = window.matchMedia("(min-width: 1024px)");
     const update = () => setDesktop(media.matches);
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
@@ -43,7 +43,7 @@ export function EditorShell({ project, onSave }: { project: Project; onSave: (la
   function addLayer(type: LayerType) {
     const id = `${type}-${Date.now()}`;
     const parent = selectedLayer.type === "group" ? selectedLayer.id : selectedLayer.parent;
-    setLayers((items) => [...items, { id, type, parent, name: type === "group" ? "New group" : `New ${type}`, x: 40, y: 35, width: type === "text" ? 28 : 18, height: type === "text" ? 10 : 24, rotation: 0, opacity: 100, fill: type === "text" ? "#17131f" : "#d8ff65", visible: true, start: time, duration: Math.min(2, 5 - time) }]);
+    setLayers((items) => [...items, { id, type, parent, name: type === "group" ? "New group" : `New ${type}`, x: 40, y: 35, width: type === "text" ? 28 : 18, height: type === "text" ? 10 : 24, rotation: 0, opacity: 100, fill: type === "text" ? "#17131f" : "#d8ff65", visible: true, start: time, duration: Math.min(2, 5 - time), inTimeline: false }]);
     setSelected(id);
   }
 
@@ -53,9 +53,10 @@ export function EditorShell({ project, onSave }: { project: Project; onSave: (la
     setSelected(selectedLayer.parent ?? layers[0].id);
   }
 
-  const layerPanel = <LayersPanel layers={layers} selected={selected} onSelect={setSelected} onAdd={addLayer} onToggleVisibility={(id) => setLayers((items) => items.map((layer) => layer.id === id ? { ...layer, visible: !layer.visible } : layer))} />;
+  const updateLayer = (id: string, patch: Partial<Layer>) => setLayers((items) => items.map((layer) => layer.id === id ? { ...layer, ...patch } : layer));
+  const layerPanel = <LayersPanel layers={layers} selected={selected} onSelect={setSelected} onAdd={addLayer} onChange={updateLayer} />;
 
-  return <Tooltip.Provider delayDuration={250}><main className="flex h-screen min-h-[600px] w-screen flex-col overflow-hidden bg-zinc-950 text-zinc-300"><EditorHeader name={project.name} />
+  return <Tooltip.Provider delayDuration={250}><main className="flex h-screen min-h-[600px] w-screen flex-col overflow-hidden bg-zinc-950 text-zinc-300"><EditorHeader name={project.name} onRename={onRename} />
     <PanelGroup direction="vertical" className="min-h-0 flex-1">
       <Panel defaultSize={73} minSize={45}>
         <div className="relative size-full">
@@ -63,7 +64,7 @@ export function EditorShell({ project, onSave }: { project: Project; onSave: (la
         </div>
       </Panel>
       <ResizeHandle direction="vertical" />
-      <Panel defaultSize={27} minSize={15} maxSize={55}><TimelinePanel layers={layers} selected={selected} time={time} playing={playing} onSelect={setSelected} onTime={setTime} onPlaying={setPlaying} /></Panel>
+      <Panel defaultSize={27} minSize={15} maxSize={55}><TimelinePanel layers={layers} selected={selected} time={time} playing={playing} onSelect={setSelected} onTime={setTime} onPlaying={setPlaying} onChange={updateLayer} /></Panel>
     </PanelGroup>
   </main></Tooltip.Provider>;
 }
