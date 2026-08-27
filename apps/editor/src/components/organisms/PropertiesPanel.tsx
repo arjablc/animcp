@@ -1,0 +1,15 @@
+import * as Slider from "@radix-ui/react-slider";
+import { MoreHorizontal, Plus, RotateCcw, Trash2 } from "lucide-react";
+import type { Layer } from "../../editor/model";
+import { Button } from "../atoms/Button";
+import { LayerIcon } from "../atoms/LayerIcon";
+import { NumberField } from "../molecules/NumberField";
+import { PropertySection } from "../molecules/PropertySection";
+
+export function PropertiesPanel({ layer, onChange, onDelete }: { layer: Layer; onChange: (patch: Partial<Layer>) => void; onDelete: () => void }) {
+  return <aside className="size-full overflow-y-auto bg-zinc-900"><div className="flex h-11 items-center justify-between border-b border-white/10 px-3.5"><strong className="text-[11px]">Properties</strong><Button className="size-7 text-zinc-500"><MoreHorizontal className="size-4" /></Button></div>
+    <div className="m-3 flex items-center gap-2.5 rounded-lg border border-white/10 bg-white/[.025] p-2.5"><LayerIcon type={layer.type} className="size-4" /><div className="min-w-0 flex-1"><input className="select-text w-full bg-transparent text-[10px] font-semibold outline-none focus:text-lime-300" value={layer.name} onChange={(event) => onChange({ name: event.target.value })} /><span className="block text-[8px] capitalize text-zinc-600">{layer.type}</span></div><Button className="size-7 text-zinc-600 hover:text-red-400" disabled={layer.type === "group"} onClick={onDelete}><Trash2 className="size-3.5" /></Button></div>
+    <PropertySection title="Transform" action={<RotateCcw className="size-3" />}><div className="grid grid-cols-2 gap-1.5">{(["x", "y", "width", "height", "rotation"] as const).map((key) => <NumberField key={key} label={{ x: "X", y: "Y", width: "W", height: "H", rotation: "R" }[key]} value={layer[key]} onChange={(value) => onChange({ [key]: value })} />)}</div></PropertySection>
+    <PropertySection title="Appearance" action={<Plus className="size-3" />}><label className="flex h-8 items-center gap-2 rounded-md border border-white/10 bg-white/[.025] px-2 text-[9px] text-zinc-500"><span className="w-9">Fill</span><input type="color" className="size-4 cursor-pointer rounded border-0 bg-transparent p-0" value={layer.fill} onChange={(event) => onChange({ fill: event.target.value })} /><input className="select-text min-w-0 flex-1 bg-transparent font-mono text-[9px] text-zinc-400 outline-none" value={layer.fill} onChange={(event) => /^#[0-9a-f]{6}$/i.test(event.target.value) && onChange({ fill: event.target.value })} /></label><div className="mt-3 grid grid-cols-[50px_1fr_34px] items-center text-[9px] text-zinc-500"><span>Opacity</span><Slider.Root value={[layer.opacity]} max={100} step={1} onValueChange={([opacity]) => onChange({ opacity })} className="relative flex h-4 touch-none items-center"><Slider.Track className="relative h-0.5 flex-1 rounded bg-white/10"><Slider.Range className="absolute h-full rounded bg-lime-300" /></Slider.Track><Slider.Thumb className="block size-3 rounded-full bg-lime-300 outline-none ring-zinc-900 focus:ring-2" /></Slider.Root><span className="text-right font-mono text-[8px] text-zinc-400">{layer.opacity}%</span></div></PropertySection>
+  </aside>;
+}
