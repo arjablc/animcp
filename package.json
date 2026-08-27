@@ -1,0 +1,13 @@
+{
+  "name": "animcp",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=@animcp/image-transport-test",
+    "check": "npm run check --workspace=@animcp/image-transport-test",
+    "dev:test": "npm run dev --workspace=@animcp/image-transport-test",
+    "test": "npm run test --workspace=@animcp/image-transport-test"
+  }
+}
