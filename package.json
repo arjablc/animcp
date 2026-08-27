@@ -1,13 +1,12 @@
 {
   "name": "animcp",
   "private": true,
-  "workspaces": [
-    "apps/*"
-  ],
+  "packageManager": "pnpm@11.3.0",
   "scripts": {
-    "build": "npm run build --workspace=@animcp/image-transport-test",
-    "check": "npm run check --workspace=@animcp/image-transport-test",
-    "dev:test": "npm run dev --workspace=@animcp/image-transport-test",
-    "test": "npm run test --workspace=@animcp/image-transport-test"
+    "build": "pnpm --filter @animcp/image-transport-test build",
+    "check": "pnpm --filter @animcp/image-transport-test check",
+    "dev:editor": "pnpm --filter @animcp/editor dev",
+    "dev:test": "pnpm --filter @animcp/image-transport-test dev",
+    "test": "pnpm --filter @animcp/image-transport-test test"
   }
 }
