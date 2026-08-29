@@ -1,4 +1,11 @@
-export type LayerType = "group" | "rectangle" | "ellipse" | "path" | "text" | "star";
+export type LayerType = "group" | "svg" | "rectangle" | "ellipse" | "path" | "text" | "star";
+
+export const svgProperties = ["translateX", "translateY", "rotation", "scaleX", "scaleY", "opacity", "fill", "stroke", "strokeWidth"] as const;
+export type SvgProperty = typeof svgProperties[number];
+export type SvgValue = number | string;
+export type SvgPart = { id: string; name: string; tag: string; parentId?: string; fill?: string; stroke?: string; opacity?: number; strokeWidth?: number };
+export type Keyframe = { time: number; value: SvgValue };
+export type AnimationTrack = { partId: string; property: SvgProperty; keyframes: Keyframe[] };
 
 export type Layer = {
   id: string;
@@ -16,19 +23,17 @@ export type Layer = {
   start: number;
   duration: number;
   inTimeline?: boolean;
+  assetId?: string;
+  svgParts?: SvgPart[];
+  partOverrides?: Record<string, Partial<Record<SvgProperty, SvgValue>>>;
+  animations?: AnimationTrack[];
 };
 
 export const initialLayers: Layer[] = [
-  { id: "scene", name: "Hero scene", type: "group", x: 0, y: 0, width: 100, height: 100, rotation: 0, opacity: 100, fill: "#ffffff", visible: true, start: 0, duration: 5 },
-  { id: "orb", name: "Sun orb", type: "ellipse", parent: "scene", x: 72, y: 11, width: 24, height: 43, rotation: 0, opacity: 100, fill: "#ff795f", visible: true, start: .3, duration: 2.3, inTimeline: true },
-  { id: "wave", name: "Flowing path", type: "path", parent: "scene", x: 0, y: 35, width: 100, height: 48, rotation: -5, opacity: 100, fill: "#7557f6", visible: true, start: .85, duration: 3.1, inTimeline: true },
-  { id: "title", name: "Main title", type: "text", parent: "scene", x: 9, y: 25, width: 48, height: 30, rotation: 0, opacity: 100, fill: "#17131f", visible: true, start: 1.55, duration: 2.4, inTimeline: true },
-  { id: "details", name: "Details", type: "group", x: 0, y: 0, width: 100, height: 100, rotation: 0, opacity: 100, fill: "#ffffff", visible: true, start: 0, duration: 5 },
-  { id: "spark", name: "Sparkle", type: "star", parent: "details", x: 88, y: 82, width: 7, height: 10, rotation: 12, opacity: 100, fill: "#d8ff65", visible: true, start: 2.2, duration: 1.8 },
-  { id: "caption", name: "Caption", type: "text", parent: "details", x: 9, y: 57, width: 38, height: 7, rotation: 0, opacity: 70, fill: "#756c63", visible: true, start: 1.8, duration: 2.5 },
+  { id: "scene", name: "Scene", type: "group", x: 0, y: 0, width: 100, height: 100, rotation: 0, opacity: 100, fill: "#ffffff", visible: true, start: 0, duration: 5 },
 ];
 
-export const toolTypes: Exclude<LayerType, "group">[] = ["rectangle", "ellipse", "path", "text", "star"];
+export const toolTypes: Exclude<LayerType, "group" | "svg">[] = ["rectangle", "ellipse", "path", "text", "star"];
 
 export function formatTime(seconds: number) {
   const frames = Math.floor((seconds % 1) * 30);
@@ -37,4 +42,21 @@ export function formatTime(seconds: number) {
 
 export function trackStartFromPointer(pointerX: number, width: number, dragOffset: number, duration: number) {
   return Math.max(0, Math.min(5 - duration, (pointerX - dragOffset) / width * 5));
+}
+
+export function fitImageToCanvas(imageWidth: number, imageHeight: number) {
+  let width = 40;
+  let height = width * 16 / 9 * imageHeight / imageWidth;
+  if (height > 60) {
+    height = 60;
+    width = height * 9 / 16 * imageWidth / imageHeight;
+  }
+  return { x: (100 - width) / 2, y: (100 - height) / 2, width, height };
+}
+
+export function layerPositionFromDrag(layer: Pick<Layer, "x" | "y" | "width" | "height">, deltaX: number, deltaY: number, canvasWidth: number, canvasHeight: number) {
+  return {
+    x: Math.max(0, Math.min(100 - layer.width, layer.x + deltaX / canvasWidth * 100)),
+    y: Math.max(0, Math.min(100 - layer.height, layer.y + deltaY / canvasHeight * 100)),
+  };
 }

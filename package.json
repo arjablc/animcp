@@ -3,10 +3,10 @@
   "private": true,
   "packageManager": "pnpm@11.3.0",
   "scripts": {
-    "build": "pnpm --filter @animcp/image-transport-test build",
-    "check": "pnpm --filter @animcp/image-transport-test check",
+    "build": "pnpm --filter @animcp/editor build",
+    "check": "pnpm --filter @animcp/editor check",
     "dev:editor": "pnpm --filter @animcp/editor dev",
     "dev:test": "pnpm --filter @animcp/image-transport-test dev",
-    "test": "pnpm --filter @animcp/image-transport-test test"
+    "test": "pnpm --filter @animcp/editor test"
   }
 }

@@ -1,8 +1,8 @@
-import { Circle, Folder, PenTool, Sparkles, Square, Type } from "lucide-react";
+import { Circle, Folder, PenTool, Sparkles, Square, Type, Waypoints } from "lucide-react";
 import type { LayerType } from "../../editor/model";
 import { cn } from "../../lib/cn";
 
-const icons = { group: Folder, rectangle: Square, ellipse: Circle, path: PenTool, text: Type, star: Sparkles };
+const icons = { group: Folder, svg: Waypoints, rectangle: Square, ellipse: Circle, path: PenTool, text: Type, star: Sparkles };
 
 export function LayerIcon({ type, className }: { type: LayerType; className?: string }) {
   const Icon = icons[type];
