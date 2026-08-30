@@ -2,10 +2,12 @@ export type LayerType = "group" | "svg" | "rectangle" | "ellipse" | "path" | "te
 
 export const svgProperties = ["translateX", "translateY", "rotation", "scaleX", "scaleY", "opacity", "fill", "stroke", "strokeWidth"] as const;
 export type SvgProperty = typeof svgProperties[number];
+export const layerProperties = ["x", "y", "width", "height", "rotation", "opacity", "fill"] as const;
+export type LayerProperty = typeof layerProperties[number];
 export type SvgValue = number | string;
 export type SvgPart = { id: string; name: string; tag: string; parentId?: string; fill?: string; stroke?: string; opacity?: number; strokeWidth?: number };
 export type Keyframe = { time: number; value: SvgValue };
-export type AnimationTrack = { partId: string; property: SvgProperty; keyframes: Keyframe[] };
+export type AnimationTrack = { partId?: string; property: SvgProperty | LayerProperty; keyframes: Keyframe[] };
 
 export type Layer = {
   id: string;

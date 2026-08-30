@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { partValue, setPartKeyframes, setPartProperty, togglePartKeyframe } from "../src/editor/animation";
+import { layerValue, partValue, setLayerKeyframes, setPartKeyframes, setPartProperty, toggleLayerKeyframe, togglePartKeyframe } from "../src/editor/animation";
 import type { Layer, SvgPart } from "../src/editor/model";
 import { validViewBox, viewBoxFromDimensions } from "../src/svg/document";
 
@@ -30,5 +30,13 @@ describe("tagged SVG animation", () => {
     const added = togglePartKeyframe([layer], "car", "left-wheel", "opacity", 1, .5);
     expect(added[0].animations?.[0].keyframes).toEqual([{ time: 1, value: .5 }]);
     expect(togglePartKeyframe(added, "car", "left-wheel", "opacity", 1, .5)[0].animations).toEqual([]);
+  });
+
+  it("animates every whole-layer property", () => {
+    let layers = setLayerKeyframes([layer], "car", "x", [{ time: 0, value: 0 }, { time: 2, value: 100 }]);
+    layers = setLayerKeyframes(layers, "car", "fill", [{ time: 0, value: "#000000" }, { time: 2, value: "#ffffff" }]);
+    expect(layerValue(layers[0], "x", 1)).toBe(50);
+    expect(layerValue(layers[0], "fill", 1)).toBe("#808080");
+    expect(toggleLayerKeyframe(layers, "car", "opacity", 1, 50)[0].animations?.at(-1)?.keyframes).toEqual([{ time: 1, value: 50 }]);
   });
 });

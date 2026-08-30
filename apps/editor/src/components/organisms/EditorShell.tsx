@@ -2,8 +2,8 @@ import { useEffect, useEffectEvent, useState } from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { Panel, PanelGroup } from "react-resizable-panels";
 import { importSvgFile, type ImportResult, type SvgAssetMetadata } from "../../assets/importer";
-import { setPartKeyframes, setPartProperty, togglePartKeyframe, trackFor, upsertPartKeyframe } from "../../editor/animation";
-import { fitImageToCanvas, type Keyframe, type Layer, type LayerType, type SvgProperty, type SvgValue } from "../../editor/model";
+import { layerTrackFor, setLayerKeyframes, setPartKeyframes, setPartProperty, toggleLayerKeyframe, togglePartKeyframe, trackFor, upsertLayerKeyframe, upsertPartKeyframe } from "../../editor/animation";
+import { fitImageToCanvas, layerProperties, type Keyframe, type Layer, type LayerProperty, type LayerType, type SvgProperty, type SvgValue } from "../../editor/model";
 import type { Project } from "../../lib/projects";
 import { registerEditorTools } from "../../webmcp";
 import { CanvasPanel } from "./CanvasPanel";
@@ -52,7 +52,7 @@ export function EditorShell({ project, onSave, onRename }: { project: Project; o
     setLayers((items) => [...items, {
       id, assetId: asset.id, type: "svg", parent, name: asset.name, svgParts: asset.parts,
       ...fitImageToCanvas(asset.width, asset.height), rotation: 0, opacity: 100, fill: "#ffffff",
-      visible: true, start: 0, duration: 5, inTimeline: true,
+      visible: true, start: 0, duration: 5, inTimeline: false,
     }]);
     setSelected(id);
     setSelectedPart(undefined);
@@ -82,7 +82,7 @@ export function EditorShell({ project, onSave, onRename }: { project: Project; o
   }
 
   function updateSelected(patch: Partial<Layer>) {
-    setLayers((items) => items.map((layer) => layer.id === selected ? { ...layer, ...patch } : layer));
+    updateAnimatedLayer(selected, patch);
   }
 
   function updatePartProperty(property: SvgProperty, value: SvgValue) {
@@ -92,9 +92,14 @@ export function EditorShell({ project, onSave, onRename }: { project: Project; o
       : setPartProperty(items, selected, selectedPart, property, value));
   }
 
-  function toggleKeyframe(property: SvgProperty, value: SvgValue) {
+  function togglePartAnimation(property: SvgProperty, value: SvgValue) {
     if (!selectedPart || !validValue(property, value)) return;
     setLayers((items) => togglePartKeyframe(items, selected, selectedPart, property, time, value));
+  }
+
+  function toggleLayerAnimation(property: LayerProperty, value: SvgValue) {
+    if (!validLayerValue(property, value)) return;
+    setLayers((items) => toggleLayerKeyframe(items, selected, property, time, value));
   }
 
   function addLayer(type: LayerType) {
@@ -120,8 +125,13 @@ export function EditorShell({ project, onSave, onRename }: { project: Project; o
     setLayers((items) => setPartProperty(items, target.layerId, target.partId, property, value));
     return { ok: true, ...target, property, value };
   });
+  const setLayerProperty = useEffectEvent((layerId: string, property: LayerProperty, value: SvgValue) => {
+    if (!layers.some((layer) => layer.id === layerId && layer.type !== "group") || !validLayerValue(property, value)) return { ok: false, error: "Invalid layer or property value." };
+    setLayers((items) => items.map((layer) => layer.id === layerId ? { ...layer, [property]: value } : layer));
+    return { ok: true, layerId, property, value };
+  });
   const animate = useEffectEvent((target: { layerId: string; partId: string }, property: SvgProperty, keyframes: Keyframe[]) => {
-    if (!targetExists(layers, target) || !keyframes.length || new Set(keyframes.map((keyframe) => keyframe.time)).size !== keyframes.length || keyframes.some((keyframe) => !Number.isFinite(keyframe.time) || keyframe.time < 0 || keyframe.time > 5 || !validValue(property, keyframe.value))) return { ok: false, error: "Invalid SVG target or keyframes." };
+    if (!targetExists(layers, target) || !validKeyframes(keyframes, (value) => validValue(property, value))) return { ok: false, error: "Invalid SVG target or keyframes." };
     setLayers((items) => setPartKeyframes(items, target.layerId, target.partId, property, keyframes));
     return { ok: true, ...target, property, keyframes };
   });
@@ -130,15 +140,32 @@ export function EditorShell({ project, onSave, onRename }: { project: Project; o
     setLayers((items) => setPartKeyframes(items, target.layerId, target.partId, property, []));
     return { ok: true, ...target, property };
   });
+  const animateLayer = useEffectEvent((layerId: string, property: LayerProperty, keyframes: Keyframe[]) => {
+    if (!layers.some((layer) => layer.id === layerId && layer.type !== "group") || !validKeyframes(keyframes, (value) => validLayerValue(property, value))) return { ok: false, error: "Invalid layer or keyframes." };
+    setLayers((items) => setLayerKeyframes(items, layerId, property, keyframes).map((layer) => layer.id === layerId ? { ...layer, inTimeline: true } : layer));
+    return { ok: true, layerId, property, keyframes };
+  });
+  const deleteLayerAnimation = useEffectEvent((layerId: string, property: LayerProperty) => {
+    if (!layers.some((layer) => layer.id === layerId && layer.type !== "group")) return { ok: false, error: "Layer not found." };
+    setLayers((items) => setLayerKeyframes(items, layerId, property, []));
+    return { ok: true, layerId, property };
+  });
   const seek = useEffectEvent((next: number) => { setTime(Math.max(0, Math.min(5, next))); return { ok: true, time: next }; });
   const playback = useEffectEvent((next: boolean) => { setPlaying(next); return { ok: true, playing: next }; });
 
   useEffect(() => {
     const controller = new AbortController();
-    void registerEditorTools({ getScene, getParts, setProperty, animate, deleteAnimation, setPlayhead: seek, setPlayback: playback }, controller.signal);
+    void registerEditorTools({ getScene, getParts, setProperty, setLayerProperty, animate, animateLayer, deleteAnimation, deleteLayerAnimation, setPlayhead: seek, setPlayback: playback }, controller.signal);
     return () => controller.abort();
   }, []);
 
+  function updateAnimatedLayer(id: string, patch: Partial<Layer>) {
+    setLayers((items) => Object.entries(patch).reduce((next, [key, value]) => {
+      const layer = next.find((item) => item.id === id);
+      if (layer && layerProperties.includes(key as LayerProperty) && layerTrackFor(layer, key as LayerProperty)) return upsertLayerKeyframe(next, id, key as LayerProperty, { time, value: value as SvgValue });
+      return next.map((item) => item.id === id ? { ...item, [key]: value } : item);
+    }, items));
+  }
   const updateLayer = (id: string, patch: Partial<Layer>) => setLayers((items) => items.map((layer) => layer.id === id ? { ...layer, ...patch } : layer));
   const layerPanel = <LayersPanel layers={layers} selected={selected} selectedPart={selectedPart} onSelect={selectLayer} onSelectPart={selectPart} onAdd={addLayer} onChange={updateLayer} />;
 
@@ -147,7 +174,7 @@ export function EditorShell({ project, onSave, onRename }: { project: Project; o
     <PanelGroup direction="vertical" className="min-h-0 flex-1">
       <Panel defaultSize={73} minSize={45}>
         <div className="relative size-full">
-          {desktop ? <PanelGroup direction="horizontal"><Panel defaultSize={17} minSize={12} maxSize={30}>{layerPanel}</Panel><ResizeHandle /><Panel defaultSize={64} minSize={35}><CanvasPanel layers={layers} selected={selected} selectedPart={selectedPart} time={time} zoom={zoom} importNotice={importNotice} onSelect={selectLayer} onSelectPart={selectPart} onChange={updateLayer} onZoom={setZoom} onImport={importFiles} /></Panel><ResizeHandle /><Panel defaultSize={19} minSize={15} maxSize={35}><PropertiesPanel layer={selectedLayer} part={part} time={time} onChange={updateSelected} onPartChange={updatePartProperty} onToggleKeyframe={toggleKeyframe} onDelete={deleteSelected} /></Panel></PanelGroup> : <><CanvasPanel layers={layers} selected={selected} selectedPart={selectedPart} time={time} zoom={zoom} importNotice={importNotice} onSelect={selectLayer} onSelectPart={selectPart} onChange={updateLayer} onZoom={setZoom} onImport={importFiles} /><div className="absolute left-2.5 top-2.5 z-20 max-h-[320px] w-[190px] overflow-auto rounded-lg border border-white/10 shadow-2xl">{layerPanel}</div></>}
+          {desktop ? <PanelGroup direction="horizontal"><Panel defaultSize={17} minSize={12} maxSize={30}>{layerPanel}</Panel><ResizeHandle /><Panel defaultSize={64} minSize={35}><CanvasPanel layers={layers} selected={selected} selectedPart={selectedPart} time={time} zoom={zoom} importNotice={importNotice} onSelect={selectLayer} onSelectPart={selectPart} onChange={updateAnimatedLayer} onZoom={setZoom} onImport={importFiles} /></Panel><ResizeHandle /><Panel defaultSize={19} minSize={15} maxSize={35}><PropertiesPanel layer={selectedLayer} part={part} time={time} onChange={updateSelected} onPartChange={updatePartProperty} onToggleLayerKeyframe={toggleLayerAnimation} onTogglePartKeyframe={togglePartAnimation} onDelete={deleteSelected} /></Panel></PanelGroup> : <><CanvasPanel layers={layers} selected={selected} selectedPart={selectedPart} time={time} zoom={zoom} importNotice={importNotice} onSelect={selectLayer} onSelectPart={selectPart} onChange={updateAnimatedLayer} onZoom={setZoom} onImport={importFiles} /><div className="absolute left-2.5 top-2.5 z-20 max-h-[320px] w-[190px] overflow-auto rounded-lg border border-white/10 shadow-2xl">{layerPanel}</div></>}
         </div>
       </Panel>
       <ResizeHandle direction="vertical" />
@@ -166,4 +193,16 @@ function validValue(property: SvgProperty, value: SvgValue) {
   if (property === "opacity") return value >= 0 && value <= 1;
   if (property === "strokeWidth") return value >= 0;
   return true;
+}
+
+function validLayerValue(property: LayerProperty, value: SvgValue) {
+  if (property === "fill") return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
+  if (typeof value !== "number" || !Number.isFinite(value)) return false;
+  if (property === "opacity") return value >= 0 && value <= 100;
+  if (property === "width" || property === "height") return value >= 0;
+  return true;
+}
+
+function validKeyframes(keyframes: Keyframe[], valid: (value: SvgValue) => boolean) {
+  return keyframes.length > 0 && new Set(keyframes.map((keyframe) => keyframe.time)).size === keyframes.length && keyframes.every((keyframe) => Number.isFinite(keyframe.time) && keyframe.time >= 0 && keyframe.time <= 5 && valid(keyframe.value));
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { Hand, MousePointer2, Upload, ZoomIn, ZoomOut } from "lucide-react";
 import { getStoredAsset } from "../../assets/importer";
+import { evaluatedLayer } from "../../editor/animation";
 import { layerPositionFromDrag, trackStartFromPointer, type Layer } from "../../editor/model";
 import { cn } from "../../lib/cn";
 import { Button } from "../atoms/Button";
@@ -78,14 +79,15 @@ export function CanvasPanel({ layers, selected, selectedPart, time, zoom, import
 
   function renderLayer(layer: Layer) {
     if (layer.type === "group" || !layer.visible) return null;
-    const move = moveHandlers(layer);
-    if (layer.type === "svg") return <ImportedAssetLayer key={layer.id} layer={layer} selected={selected} selectedPart={selectedPart} time={time} move={move} onSelectPart={(partId) => onSelectPart(layer.id, partId)} />;
-    const style: CSSProperties = { left: `${layer.x}%`, top: `${layer.y}%`, width: `${layer.width}%`, height: `${layer.height}%`, opacity: layer.opacity / 100, transform: `rotate(${layer.rotation}deg)`, color: layer.fill };
+    const rendered = evaluatedLayer(layer, time);
+    const move = moveHandlers(rendered);
+    if (layer.type === "svg") return <ImportedAssetLayer key={layer.id} layer={rendered} selected={selected} selectedPart={selectedPart} time={time} move={move} onSelectPart={(partId) => onSelectPart(layer.id, partId)} />;
+    const style: CSSProperties = { left: `${rendered.x}%`, top: `${rendered.y}%`, width: `${rendered.width}%`, height: `${rendered.height}%`, opacity: rendered.opacity / 100, transform: `rotate(${rendered.rotation}deg)`, color: rendered.fill };
     const common = cn("absolute touch-none cursor-grab outline-offset-2 active:cursor-grabbing", selected === layer.id && "outline outline-1 outline-lime-300");
     if (layer.type === "path") return <div key={layer.id} data-canvas-layer-id={layer.id} className={common} style={style} {...move}><svg className="size-full" viewBox="0 0 700 180" preserveAspectRatio="none"><path d="M-20 140 C130 10 250 205 405 76 C520 -15 610 90 735 2" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="58" /><path d="M-20 140 C130 10 250 205 405 76 C520 -15 610 90 735 2" fill="none" stroke="#ffffff" opacity=".18" strokeLinecap="round" strokeWidth="10" /></svg></div>;
     if (layer.type === "text") return <div key={layer.id} data-canvas-layer-id={layer.id} className={cn(common, "select-text flex items-center")} style={style} {...move}>{layer.id === "title" ? <h1 className="select-text m-0 text-[clamp(22px,4.2vw,64px)] font-bold leading-[.96] tracking-[-.065em]">Shape ideas<br />into motion.</h1> : <p className="select-text m-0 text-[clamp(6px,.8vw,12px)]">{layer.id === "caption" ? "Every frame, exactly where it belongs." : layer.name}</p>}</div>;
     if (layer.type === "star") return <div key={layer.id} data-canvas-layer-id={layer.id} className={cn(common, "grid place-items-center text-[clamp(20px,3.5vw,52px)] drop-shadow-[3px_3px_0_#17131f]")} style={style} {...move}>✦</div>;
-    return <div key={layer.id} data-canvas-layer-id={layer.id} className={cn(common, layer.type === "ellipse" ? "rounded-full shadow-[inset_-16px_-18px_0_#00000012]" : "rounded-sm")} style={{ ...style, backgroundColor: layer.fill }} {...move}>{layer.id === "orb" && <span className="absolute left-[20%] top-[18%] size-[16%] rounded-full bg-orange-300" />}</div>;
+    return <div key={layer.id} data-canvas-layer-id={layer.id} className={cn(common, layer.type === "ellipse" ? "rounded-full shadow-[inset_-16px_-18px_0_#00000012]" : "rounded-sm")} style={{ ...style, backgroundColor: rendered.fill }} {...move}>{layer.id === "orb" && <span className="absolute left-[20%] top-[18%] size-[16%] rounded-full bg-orange-300" />}</div>;
   }
 
   return <section
