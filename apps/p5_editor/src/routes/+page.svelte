@@ -5,6 +5,7 @@
   import ProjectCard from "$lib/features/projects/ProjectCard.svelte";
   import { createProject, type P5Project } from "$lib/features/projects/project";
   import { deleteProject, getProjects, saveProject } from "$lib/features/projects/storage";
+  import heroImage from "$lib/assets/studio.png"
 
   let projects = $state<P5Project[]>([]);
 
@@ -23,19 +24,21 @@
   }
 </script>
 
-<svelte:head><title>p5 Studio · AniMCP</title><meta name="description" content="A human and agent p5.js editor powered by WebMCP." /></svelte:head>
+<svelte:head><title>aniMCP</title><meta name="description" content="A human and agent p5.js editor powered by WebMCP." /></svelte:head>
 
 <main class="projects-page">
   <header class="projects-hero">
     <div>
       <a class="brand" href="/"><span>ANIMCP</span></a>
       <p class="eyebrow">Human-directed generative motion</p>
-      <h1>Make the code<br /><em>move.</em></h1>
-      <p class="intro">Build p5.js sketches with an external agent, then art-direct every exposed value in real time.</p>
+      <h1>Make the code move</h1>
+      <p class="intro">A webMCP based experience to create <span class="text-primary">MOTION</span></p>
+      <Button class="new-project mt-4" onclick={create}><span>+</span> New sketch</Button>
     </div>
-    <Button class="new-project" onclick={create}><span>+</span> New sketch</Button>
+    <div class="flex flex-col gap-4 items-center">
+      <img class="rounded-xl border-2 border-accent" src={heroImage} alt="Hero">
+    </div>
   </header>
-
   <section class="project-section" aria-labelledby="projects-title">
     <div class="section-title"><h2 id="projects-title">Local sketches</h2><span>{projects.length.toString().padStart(2, "0")}</span></div>
     {#if projects.length === 0}
