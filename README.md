@@ -1,28 +1,27 @@
 # AniMCP
 
-This monorepo starts by testing whether an agent can reliably transfer a generated PNG into a browser page through WebMCP.
+This monorepo contains two agent-native animation editors and a thin Go operational API.
 
 ## Layout
 
-- `apps/image-transport-test`: disposable Phase 0 transport harness
-- `apps/editor`: the eventual animation editor
+- `apps/editor`: React SVG animation editor
+- `apps/p5_editor`: SvelteKit p5.js editor with generated controls and WebMCP tools
 - `backend`: thin Go operational API
 - `docs`: experiment records
 
-## Run the transport test app
+## Run the p5 editor
 
 ```sh
-npm install
-npm run dev:test
+pnpm install
+pnpm dev:p5
 ```
 
-Run the importer checks with `npm test` and the production build with `npm run build`.
-
-Use **Run locally** to validate the importer and **Copy tool input** to give an agent deterministic PNG bytes for a real WebMCP call. The app pins that fixture's byte count and hash by transfer ID, so only an unchanged copied fixture is shown as fixture-verified. Generated images are self-checked when they supply `expectedBytes` and `sha256`. The copied payload never appears in the page or result history.
+Run all checks with `pnpm check`, tests with `pnpm test`, and production builds with `pnpm build`.
 
 ## Run the backend
 
 ```sh
+cd backend
 go run ./cmd/api
 ```
 
