@@ -1,4 +1,5 @@
-import { defaultExportSettings, defaultSource, exportFrameRates, legacyDefaultSource, type ExportSettings, type P5Project } from "./project";
+import { defaultExportSettings, exportFrameRates, type ExportSettings, type P5Project } from "./project";
+import { defaultSource, legacyDefaultSource } from "./starter";
 
 const storageKey = "animcp.p5-projects.v2";
 const legacyStorageKey = "animcp.p5-projects.v1";

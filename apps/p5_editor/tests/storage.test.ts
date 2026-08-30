@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { defaultExportSettings, legacyDefaultSource } from "../src/lib/project";
-import { migrateProject } from "../src/lib/storage";
+import { defaultExportSettings } from "../src/lib/features/projects/project";
+import { legacyDefaultSource } from "../src/lib/features/projects/starter";
+import { migrateProject } from "../src/lib/features/projects/storage";
 
 const project = {
   version: 1,

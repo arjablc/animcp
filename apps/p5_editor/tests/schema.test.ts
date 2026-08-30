@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { controlGroups, mergeConfig, parseDefinition, setConfigValue, type SchemaNode } from "../src/lib/schema";
+import { controlGroups, mergeConfig, parseDefinition, setConfigValue, type SchemaNode } from "../src/lib/features/config/schema";
 
 const schema: SchemaNode = {
   type: "object",

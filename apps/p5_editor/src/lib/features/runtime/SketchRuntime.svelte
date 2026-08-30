@@ -1,9 +1,12 @@
 <script lang="ts">
   import { onDestroy, tick } from "svelte";
   import p5Source from "virtual:p5-runtime";
-  import type { PlaybackAction, SketchRuntimeHandle } from "../commands";
-  import type { ExportSettings } from "../project";
-  import type { ConfigObject, SketchDefinition } from "../schema";
+  import type { ConfigObject, SketchDefinition } from "$lib/features/config/schema";
+  import type { PlaybackAction } from "$lib/features/editor/commands";
+  import type { ExportSettings } from "$lib/features/projects/project";
+  import { runtimeDocument } from "./runtime-document";
+
+  type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void; reject: (error: Error) => void };
 
   let { onstatus = (_status: string) => {}, onerror = (_message: string) => {} } = $props<{
     onstatus?: (status: string) => void;
@@ -23,6 +26,7 @@
   let startingPaused = false;
   const requests = new Map<string, Deferred<unknown>>();
   const progressCallbacks = new Map<string, (progress: number) => void>();
+  // Replacing `srcdoc` creates a clean sandbox whenever the generation changes.
   let srcdoc = $derived(runtimeDocument(p5Source, generation));
 
   function handleMessage(event: MessageEvent) {
@@ -37,8 +41,18 @@
       nativeLottieSupported = message.supportsNativeLottie === true;
       definition?.resolve({ config: message.config as ConfigObject, schema: message.schema as SketchDefinition["schema"] });
     } else if (message.type === "sketch-started") {
-      onstatus(startingPaused ? "paused" : "running");
-      started?.resolve();
+      // ponytail: Chromium can leave an isolated srcdoc frame unpainted until its host is laid out again.
+      frame.style.display = "none";
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          frame.style.display = "";
+          requestAnimationFrame(() => {
+            if (message.instanceId !== instanceId) return;
+            onstatus(startingPaused ? "paused" : "running");
+            started?.resolve();
+          });
+        });
+      });
     } else if (message.type === "runtime-error") {
       const text = typeof message.message === "string" ? message.message : "The sketch failed.";
       onstatus("error");
@@ -165,6 +179,22 @@
   function message(error: unknown) {
     return error instanceof Error ? error.message : "The sketch failed.";
   }
+
+  function deferred<T>(): Deferred<T> {
+    let resolve!: (value: T) => void;
+    let reject!: (error: Error) => void;
+    const promise = new Promise<T>((accept, decline) => { resolve = accept; reject = decline; });
+    // A rejected request can be replaced before its original caller awaits it.
+    promise.catch(() => {});
+    return { promise, resolve, reject };
+  }
+
+  function withTimeout<T>(promise: Promise<T>, timeout: number, timeoutMessage: string) {
+    return new Promise<T>((resolve, reject) => {
+      const timer = window.setTimeout(() => reject(new Error(timeoutMessage)), timeout);
+      promise.then((value) => { clearTimeout(timer); resolve(value); }, (error) => { clearTimeout(timer); reject(error); });
+    });
+  }
 </script>
 
 <iframe
@@ -184,119 +214,3 @@
     background: #0a0b09;
   }
 </style>
-
-<script lang="ts" module>
-  type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void; reject: (error: Error) => void };
-
-  function deferred<T>(): Deferred<T> {
-    let resolve!: (value: T) => void;
-    let reject!: (error: Error) => void;
-    const promise = new Promise<T>((accept, decline) => { resolve = accept; reject = decline; });
-    promise.catch(() => {});
-    return { promise, resolve, reject };
-  }
-
-  function withTimeout<T>(promise: Promise<T>, timeout: number, timeoutMessage: string) {
-    return new Promise<T>((resolve, reject) => {
-      const timer = window.setTimeout(() => reject(new Error(timeoutMessage)), timeout);
-      promise.then((value) => { clearTimeout(timer); resolve(value); }, (error) => { clearTimeout(timer); reject(error); });
-    });
-  }
-
-  function runtimeDocument(library: string, generation: number) {
-    const safeLibrary = library.replace(/<\/script/gi, "<\\/script");
-    return `<!doctype html>
-<html><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'; navigate-to 'none'">
-<style>html,body{width:100vw;height:100vh;margin:0;overflow:hidden;background:#0a0b09}body{display:flex;align-items:center;justify-content:center}canvas{display:block;max-width:100%;max-height:100%}</style>
-<script>${safeLibrary}<\/script>
-<script>
-// Runtime generation ${generation}
-(() => {
-  let instanceId = "";
-  let instance;
-  let failed = false;
-  const send = (type, data = {}) => parent.postMessage({ type, instanceId, ...data }, "*");
-  const fail = (error) => { failed = true; send("runtime-error", { message: error instanceof Error ? error.message : String(error) }); };
-
-  addEventListener("error", (event) => fail(event.error || event.message));
-  addEventListener("unhandledrejection", (event) => fail(event.reason));
-  addEventListener("message", (event) => {
-    const message = event.data;
-    if (!message || typeof message !== "object") return;
-    if (message.type === "load-source") {
-      instanceId = message.instanceId;
-      try {
-        (0, eval)(message.source + "\\n//# sourceURL=agent-sketch.js");
-        send("definition-loaded", { config: window.sketchConfig, schema: window.sketchConfigSchema, supportsNativeLottie: typeof window.exportLottie === "function" });
-      } catch (error) { fail(error); }
-      return;
-    }
-    if (message.instanceId !== instanceId) return;
-    try {
-      if (message.type === "start-sketch") {
-        failed = false;
-        window.sketchConfig = message.config;
-        window.p5.instance?.remove();
-        document.querySelectorAll("canvas").forEach((canvas) => canvas.remove());
-        instance = new window.p5();
-        if (message.paused) instance.noLoop();
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          if (!failed && document.querySelectorAll("canvas").length === 1) send("sketch-started");
-          else if (!failed) fail(new Error("Sketch setup did not create exactly one canvas."));
-        }));
-      } else if (message.type === "apply-config") {
-        window.sketchConfig = message.config;
-      } else if (message.type === "control") {
-        if (message.action === "play") instance?.loop();
-        else instance?.noLoop();
-      } else if (message.type === "capture-canvas") {
-        const canvas = document.querySelector("canvas");
-        if (!canvas) throw new Error("The sketch has no canvas to export.");
-        canvas.toBlob((blob) => blob ? send("canvas-captured", { requestId: message.requestId, blob }) : send("export-failed", { requestId: message.requestId, message: "Canvas export failed." }), "image/png");
-      } else if (message.type === "export-native-lottie") {
-        if (typeof window.exportLottie !== "function") throw new Error("This sketch does not provide window.exportLottie.");
-        Promise.resolve(window.exportLottie(message.settings)).then(
-          (document) => {
-            const json = JSON.stringify(document);
-            if (json.length > 10 * 1024 * 1024) throw new Error("Vector Lottie output exceeds the 10 MiB runtime limit.");
-            send("native-lottie-exported", { requestId: message.requestId, document });
-          },
-          (error) => send("export-failed", { requestId: message.requestId, message: error instanceof Error ? error.message : String(error) })
-        ).catch((error) => send("export-failed", { requestId: message.requestId, message: error instanceof Error ? error.message : String(error) }));
-      } else if (message.type === "capture-lottie-frames") {
-        captureRaster(message.settings, message.requestId);
-      }
-    } catch (error) { fail(error); }
-  });
-
-  async function captureRaster(settings, requestId) {
-    try {
-      const count = Math.round(settings.durationSeconds * settings.frameRate);
-      if (!Number.isFinite(count) || count < 1 || count > 150) throw new Error("Raster Lottie exports require 1-150 frames.");
-      const canvas = document.querySelector("canvas");
-      if (!canvas) throw new Error("The sketch has no canvas to export.");
-      if (canvas.width * canvas.height > 2500000) throw new Error("Raster Lottie canvas area is limited to 2.5 million pixels.");
-      instance.noLoop();
-      instance.frameCount = 0;
-      instance.deltaTime = 1000 / settings.frameRate;
-      const frames = [];
-      let encodedCharacters = 0;
-      for (let index = 0; index < count; index += 1) {
-        await instance.redraw();
-        const frame = canvas.toDataURL("image/png");
-        encodedCharacters += frame.length;
-        if (encodedCharacters > 32 * 1024 * 1024) throw new Error("Raster frames exceed the 32 MiB runtime limit.");
-        frames.push(frame);
-        send("lottie-export-progress", { requestId, progress: (index + 1) / count });
-      }
-      send("raster-lottie-exported", { requestId, frames, width: canvas.width, height: canvas.height });
-    } catch (error) {
-      send("export-failed", { requestId, message: error instanceof Error ? error.message : String(error) });
-    }
-  }
-  addEventListener("load", () => parent.postMessage({ type: "runtime-ready", generation: ${generation} }, "*"), { once: true });
-})();
-<\/script></head><body></body></html>`;
-  }
-</script>

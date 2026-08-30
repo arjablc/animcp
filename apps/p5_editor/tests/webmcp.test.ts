@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { registerP5Tools } from "../src/lib/webmcp";
+import { registerP5Tools } from "../src/lib/features/editor/webmcp";
 
 afterEach(() => { delete (globalThis as { document?: unknown }).document; });
 

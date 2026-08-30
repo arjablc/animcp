@@ -1,5 +1,5 @@
+import type { P5Project } from "$lib/features/projects/project";
 import type { ConfigPatch, EditorCommands, PlaybackAction } from "./commands";
-import type { P5Project } from "./project";
 
 interface ModelContext {
   registerTool(tool: { name: string; title: string; description: string; inputSchema: Record<string, unknown>; execute: (input: unknown) => Promise<unknown> }, options?: { signal?: AbortSignal }): Promise<void>;

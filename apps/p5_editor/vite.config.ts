@@ -1,3 +1,4 @@
+import tailwindcss from "@tailwindcss/vite";
 import { sveltekit } from "@sveltejs/kit/vite";
 import { defineConfig } from "vitest/config";
 import { readFileSync } from "node:fs";
@@ -9,17 +10,20 @@ const p5Runtime = "\0p5-runtime";
 
 export default defineConfig({
   plugins: [
+    tailwindcss(),
     {
       name: "p5-runtime-source",
       resolveId: (id) => id === "virtual:p5-runtime" ? p5Runtime : undefined,
-      load: (id) => id === p5Runtime ? `export default ${JSON.stringify(readFileSync(resolve(p5Root, "lib/p5.min.js"), "utf8"))}` : undefined,
+      load: (id) => id === p5Runtime
+        ? `export default ${JSON.stringify(readFileSync(resolve(p5Root, "lib/p5.min.js"), "utf8"))}`
+        : undefined
     },
-    sveltekit(),
+    sveltekit()
   ],
   server: {
     proxy: {
-      "/api": { target: "http://localhost:8080", changeOrigin: true },
-    },
+      "/api": { target: "http://localhost:8080", changeOrigin: true }
+    }
   },
-  test: { include: ["tests/**/*.test.ts"] },
+  test: { include: ["tests/**/*.test.ts"] }
 });

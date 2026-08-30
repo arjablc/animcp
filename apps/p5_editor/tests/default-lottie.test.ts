@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultSource } from "../src/lib/project";
+import { defaultSource } from "../src/lib/features/projects/starter";
 
 describe("default sketch Lottie exporter", () => {
   it("emits smooth, spec-shaped position keyframes and a centered background", () => {

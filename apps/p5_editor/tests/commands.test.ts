@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createEditorCommands, type SketchRuntimeHandle } from "../src/lib/commands";
-import type { P5Project } from "../src/lib/project";
+import { createEditorCommands, type SketchRuntimeHandle } from "../src/lib/features/editor/commands";
+import type { P5Project } from "../src/lib/features/projects/project";
 
 const schema = { type: "object" as const, properties: { orb: { type: "object" as const, properties: { size: { type: "number" as const } } } } };
 

@@ -1,4 +1,4 @@
-import { exportFrameRates, type ExportSettings } from "./project";
+import { exportFrameRates, type ExportSettings } from "$lib/features/projects/project";
 
 export type LottieDocument = Record<string, unknown>;
 

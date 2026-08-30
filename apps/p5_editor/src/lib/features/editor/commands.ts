@@ -1,7 +1,7 @@
-import type { P5Project } from "./project";
-import type { ExportSettings } from "./project";
-import { buildRasterLottie, validateExportSettings, validateNativeLottie, type LottieDocument } from "./lottie";
-import { mergeConfig, parseDefinition, setConfigValue, type ConfigObject, type SketchDefinition } from "./schema";
+import type { ConfigObject, SketchDefinition } from "$lib/features/config/schema";
+import { mergeConfig, parseDefinition, setConfigValue } from "$lib/features/config/schema";
+import { buildRasterLottie, validateExportSettings, validateNativeLottie, type LottieDocument } from "$lib/features/export/lottie";
+import type { ExportSettings, P5Project } from "$lib/features/projects/project";
 
 export type PlaybackAction = "play" | "pause" | "restart";
 export type ConfigPatch = { path: string[]; value: unknown };

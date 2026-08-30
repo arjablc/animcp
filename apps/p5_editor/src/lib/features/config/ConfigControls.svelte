@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { controlGroups, type ConfigObject, type ConfigValue, type SchemaNode } from "../schema";
+  import { Input } from "$lib/components/ui/input";
+  import * as NativeSelect from "$lib/components/ui/native-select";
+  import { controlGroups, type ConfigObject, type ConfigValue, type SchemaNode } from "./schema";
 
   let { schema, config, onchange } = $props<{
     schema: SchemaNode;
@@ -7,6 +9,7 @@
     onchange: (path: string[], value: unknown) => void;
   }>();
 
+  // `$derived` recalculates whenever a prop it reads changes; no manual listener is needed.
   let groups = $derived(controlGroups(schema, config));
 
   function inputValue(event: Event) {
@@ -36,9 +39,9 @@
         {#if field.schema.readOnly}
           <output>{String(field.value)}</output>
         {:else if field.schema.enum}
-          <select value={String(field.value)} onchange={(event) => onchange(field.path, enumValue(event.currentTarget.value, field.schema.enum!))}>
+          <NativeSelect.Root value={String(field.value)} onchange={(event) => onchange(field.path, enumValue(event.currentTarget.value, field.schema.enum!))}>
             {#each field.schema.enum as option}<option value={String(option)}>{String(option)}</option>{/each}
-          </select>
+          </NativeSelect.Root>
         {:else if field.schema.type === "boolean"}
           <input type="checkbox" checked={field.value as boolean} onchange={(event) => onchange(field.path, event.currentTarget.checked)} />
         {:else if field.schema.format === "color"}
@@ -47,7 +50,7 @@
             <code>{String(field.value)}</code>
           </span>
         {:else if field.schema.type === "number" || field.schema.type === "integer"}
-          <input
+          <Input
             type="number"
             value={field.value as number}
             min={field.schema.minimum}
@@ -56,7 +59,7 @@
             oninput={(event) => onchange(field.path, numericValue(event))}
           />
         {:else}
-          <input type="text" value={field.value as string} oninput={(event) => onchange(field.path, inputValue(event))} />
+          <Input type="text" value={field.value as string} oninput={(event) => onchange(field.path, inputValue(event))} />
         {/if}
       </label>
     {/each}
@@ -69,8 +72,8 @@
   label { display: grid; gap: 7px; margin: 0 0 18px; color: var(--muted); font-size: 0.78rem; }
   label > span:first-child { color: var(--paper); font-weight: 650; }
   small { line-height: 1.35; }
-  input, select, output { width: 100%; border: 1px solid var(--line-bright); border-radius: 7px; background: #171a15; color: var(--paper); padding: 9px 10px; font: inherit; }
-  input:focus, select:focus { border-color: var(--acid); outline: 2px solid color-mix(in srgb, var(--acid) 24%, transparent); }
+  input, :global([data-slot="input"]), :global([data-slot="native-select"]), output { width: 100%; border: 1px solid var(--line-bright); border-radius: 7px; background: #171a15; color: var(--paper); padding: 9px 10px; font: inherit; }
+  input:focus, :global([data-slot="input"]:focus), :global([data-slot="native-select"]:focus) { border-color: var(--acid); outline: 2px solid color-mix(in srgb, var(--acid) 24%, transparent); }
   input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--acid); }
   input[type="color"] { width: 42px; height: 34px; padding: 3px; }
   .color-control { display: flex; align-items: center; gap: 10px; }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildRasterLottie, validateExportSettings, validateNativeLottie } from "../src/lib/lottie";
-import type { ExportSettings } from "../src/lib/project";
+import { buildRasterLottie, validateExportSettings, validateNativeLottie } from "../src/lib/features/export/lottie";
+import type { ExportSettings } from "../src/lib/features/projects/project";
 
 const vector: ExportSettings = { durationSeconds: 2, frameRate: 12, lottieMode: "vector" };
 const raster: ExportSettings = { ...vector, lottieMode: "raster" };
