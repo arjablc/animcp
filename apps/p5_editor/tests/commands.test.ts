@@ -6,7 +6,8 @@ const schema = { type: "object" as const, properties: { orb: { type: "object" as
 
 function setup() {
   let project: P5Project = {
-    version: 1, id: "project", name: "Test", source: "old", config: { orb: { size: 9 } }, schema,
+    version: 2, id: "project", name: "Test", source: "old", config: { orb: { size: 9 } }, schema,
+    exportSettings: { durationSeconds: 5, frameRate: 30, lottieMode: "vector" },
     revision: 3, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
   };
   const runtime: SketchRuntimeHandle = {
@@ -15,6 +16,9 @@ function setup() {
     applyConfig: vi.fn(),
     control: vi.fn(),
     capture: vi.fn(async () => new Blob()),
+    supportsNativeLottie: vi.fn(() => true),
+    exportNativeLottie: vi.fn(async () => ({ v: "5.12.2", fr: 30, ip: 0, op: 150, w: 100, h: 100, assets: [], layers: [] })),
+    captureLottieFrames: vi.fn(async () => ({ frames: [], width: 100, height: 100 })),
   };
   const commands = createEditorCommands({ getProject: () => project, setProject: (next) => { project = next; }, runtime: () => runtime });
   return { commands, runtime, project: () => project };
@@ -51,5 +55,19 @@ describe("editor commands", () => {
     expect(() => test.commands.patchConfig([{ path: ["orb", "size"], value: 12 }], 3)).toThrow("source replacement");
     finish({ config: { orb: { size: 2 } }, schema });
     await expect(replacement).resolves.toMatchObject({ revision: 4 });
+  });
+
+  it("validates and delegates native Lottie export", async () => {
+    const test = setup();
+    const document = await test.commands.exportLottie();
+    expect(document).toMatchObject({ fr: 30, op: 150, w: 100, h: 100 });
+    expect(test.runtime.exportNativeLottie).toHaveBeenCalledWith(test.project().exportSettings);
+  });
+
+  it("persists export settings without changing the sketch revision", () => {
+    const test = setup();
+    const project = test.commands.updateExportSettings({ durationSeconds: 4, frameRate: 24, lottieMode: "raster" });
+    expect(project.exportSettings).toEqual({ durationSeconds: 4, frameRate: 24, lottieMode: "raster" });
+    expect(project.revision).toBe(3);
   });
 });

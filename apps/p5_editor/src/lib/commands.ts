@@ -1,15 +1,20 @@
 import type { P5Project } from "./project";
+import type { ExportSettings } from "./project";
+import { buildRasterLottie, validateExportSettings, validateNativeLottie, type LottieDocument } from "./lottie";
 import { mergeConfig, parseDefinition, setConfigValue, type ConfigObject, type SketchDefinition } from "./schema";
 
 export type PlaybackAction = "play" | "pause" | "restart";
 export type ConfigPatch = { path: string[]; value: unknown };
 
 export interface SketchRuntimeHandle {
-  loadSource(source: string): Promise<SketchDefinition>;
+  loadSource(source: string): Promise<SketchDefinition & { supportsNativeLottie?: boolean }>;
   start(config: ConfigObject): Promise<void>;
   applyConfig(config: ConfigObject): void;
   control(action: PlaybackAction): void;
   capture(): Promise<Blob>;
+  supportsNativeLottie(): boolean;
+  exportNativeLottie(settings: ExportSettings): Promise<unknown>;
+  captureLottieFrames(settings: ExportSettings, onProgress?: (progress: number) => void): Promise<{ frames: string[]; width: number; height: number }>;
 }
 
 type Dependencies = {
@@ -20,6 +25,7 @@ type Dependencies = {
 
 export function createEditorCommands(deps: Dependencies) {
   let replacingSource = false;
+  let exportingLottie = false;
 
   function commit(changes: Partial<P5Project>) {
     const project = deps.getProject();
@@ -43,6 +49,7 @@ export function createEditorCommands(deps: Dependencies) {
     },
 
     async replaceSource(source: string, expectedRevision?: number) {
+      if (exportingLottie) throw new Error("Wait for the Lottie export to finish.");
       if (replacingSource) throw new Error("A source replacement is already in progress.");
       assertRevision(expectedRevision);
       if (!source.trim() || source.length > 200_000) throw new Error("Sketch source must contain 1-200,000 characters.");
@@ -68,6 +75,7 @@ export function createEditorCommands(deps: Dependencies) {
     },
 
     patchConfig(patches: ConfigPatch[], expectedRevision?: number) {
+      if (exportingLottie) throw new Error("Wait for the Lottie export to finish.");
       if (replacingSource) throw new Error("Wait for the source replacement to finish.");
       assertRevision(expectedRevision);
       if (!Array.isArray(patches) || patches.length === 0 || patches.length > 50) throw new Error("Provide 1-50 config patches.");
@@ -78,13 +86,46 @@ export function createEditorCommands(deps: Dependencies) {
       return next;
     },
 
+    updateExportSettings(settings: ExportSettings) {
+      if (replacingSource || exportingLottie) throw new Error("Wait for the current operation to finish.");
+      validateExportSettings(settings);
+      const project = deps.getProject();
+      const next = { ...project, exportSettings: { ...settings }, updatedAt: new Date().toISOString() };
+      deps.setProject(next);
+      return next;
+    },
+
     control(action: PlaybackAction) {
+      if (exportingLottie) throw new Error("Wait for the Lottie export to finish.");
       deps.runtime().control(action);
       return { action };
     },
 
     capture() {
+      if (exportingLottie) throw new Error("Wait for the Lottie export to finish.");
       return deps.runtime().capture();
+    },
+
+    supportsNativeLottie() {
+      return deps.runtime().supportsNativeLottie();
+    },
+
+    async exportLottie(onProgress?: (progress: number) => void): Promise<LottieDocument> {
+      if (exportingLottie || replacingSource) throw new Error("Another editor operation is already in progress.");
+      exportingLottie = true;
+      const project = deps.getProject();
+      const settings = { ...project.exportSettings };
+      try {
+        validateExportSettings(settings);
+        if (settings.lottieMode === "vector") {
+          if (!deps.runtime().supportsNativeLottie()) throw new Error("This sketch does not provide window.exportLottie. Choose Raster Lottie or ask the agent to add a vector exporter.");
+          return validateNativeLottie(await deps.runtime().exportNativeLottie(settings), settings);
+        }
+        const capture = await deps.runtime().captureLottieFrames(settings, onProgress);
+        return buildRasterLottie(project.name, capture.width, capture.height, settings, capture.frames);
+      } finally {
+        exportingLottie = false;
+      }
     },
   };
 }

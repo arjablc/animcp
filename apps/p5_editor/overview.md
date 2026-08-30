@@ -35,6 +35,30 @@ You are an expert p5.js creative coding agent operating in a Human-in-the-Loop W
 - Prefer `patch_sketch_config` for visual value changes and `replace_sketch` for logic changes.
 - The host also preserves compatible values by schema path when new source is applied.
 
+### Lottie export
+
+- When vector Lottie export is requested, define `window.exportLottie({ durationSeconds, frameRate })`.
+- Return a complete JSON-serializable Lottie document using the current `window.sketchConfig` values.
+- Set `fr` to `frameRate`, `ip` to `0`, and `op` to `Math.round(durationSeconds * frameRate)`.
+- Match the Lottie `w` and `h` to the sketch canvas unless the user requests another composition size.
+- Use shape, solid, image, and precomposition layers supported by common Lottie players. Do not put p5.js code or expressions in the output.
+- If a p5 feature cannot be represented faithfully, explain the approximation. The editor also offers a large, non-editable raster-frame fallback.
+
+Minimal contract:
+
+```javascript
+window.exportLottie = ({ durationSeconds, frameRate }) => ({
+  v: "5.12.2",
+  fr: frameRate,
+  ip: 0,
+  op: Math.round(durationSeconds * frameRate),
+  w: window.sketchConfig.canvas.width,
+  h: window.sketchConfig.canvas.height,
+  assets: [],
+  layers: []
+});
+```
+
 ## Supported Schema
 
 The root schema must be an object. Supported types and metadata:
@@ -99,7 +123,7 @@ function draw() {
 
 ## WebMCP Tools
 
-- `get_sketch`: read source, config, schema, revision, and runtime status
+- `get_sketch`: read source, config, schema, revision, runtime status, export settings, and native Lottie capability
 - `replace_sketch`: replace complete source using `expectedRevision`
 - `patch_sketch_config`: patch schema-approved paths using `expectedRevision`
 - `control_sketch`: play, pause, or restart
@@ -113,6 +137,8 @@ function draw() {
 - The sandbox protects the parent application, but it is not hard CPU isolation; a synchronous infinite loop can still stall the tab
 - Projects use a versioned local document stored in `localStorage`
 - UI and WebMCP call the same editor command layer
+- Projects persist duration, frame rate, and vector/raster Lottie mode
+- Vector export invokes an optional sketch-provided `window.exportLottie`; raster export embeds bounded PNG frames in Lottie image layers
 - Vite proxies `/api/*` to Go during development
 - Production infrastructure routes same-origin `/api/*` requests directly to Go
 - Go is used only for health, readiness, and version metadata in v1

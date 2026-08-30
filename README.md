@@ -5,7 +5,7 @@ This monorepo contains two agent-native animation editors and a thin Go operatio
 ## Layout
 
 - `apps/editor`: React SVG animation editor
-- `apps/p5_editor`: SvelteKit p5.js editor with generated controls and WebMCP tools
+- `apps/p5_editor`: SvelteKit p5.js editor with generated controls, WebMCP tools, and vector/raster Lottie JSON export
 - `backend`: thin Go operational API
 - `docs`: experiment records
 

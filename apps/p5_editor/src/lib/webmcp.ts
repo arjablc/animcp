@@ -17,9 +17,9 @@ export async function registerP5Tools(callbacks: Callbacks, signal?: AbortSignal
 
   const revision = { type: "integer", minimum: 0 };
   const tools = [
-    tool("get_sketch", "Get p5 sketch", "Return the applied source, editable configuration, schema, revision, and runtime status.", { type: "object", additionalProperties: false }, () => {
+    tool("get_sketch", "Get p5 sketch", "Return the applied source, editable configuration, schema, revision, runtime status, and Lottie export capability.", { type: "object", additionalProperties: false }, () => {
       const project = callbacks.getProject();
-      return { ok: true, source: project.source, config: project.config, schema: project.schema, revision: project.revision, runtimeStatus: callbacks.getRuntimeStatus() };
+      return { ok: true, source: project.source, config: project.config, schema: project.schema, revision: project.revision, runtimeStatus: callbacks.getRuntimeStatus(), lottie: { nativeSupported: callbacks.commands.supportsNativeLottie(), settings: project.exportSettings } };
     }),
     tool("replace_sketch", "Replace p5 sketch", "Replace the complete p5.js source. Existing compatible config values are preserved.", {
       type: "object", additionalProperties: false, required: ["source", "expectedRevision"],
