@@ -10,7 +10,7 @@ pnpm install
 pnpm dev
 ```
 
-Open the printed local URL. The home page creates v2 motion compositions; `/vector` lists previous vector projects, and `/legacy` retains p5 sketches. Existing project databases are not overwritten.
+Open the printed local URL. The home page creates motion compositions.
 
 ```sh
 pnpm check

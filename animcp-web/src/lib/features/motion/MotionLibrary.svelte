@@ -60,7 +60,6 @@
 <main>
 	<nav>
 		<a class="brand" href="/">ani<span>MCP</span><small>MOTION STUDIO</small></a>
-		<div><a href="/vector">Previous vector projects ↗</a><a href="/legacy">p5 sketches ↗</a></div>
 	</nav>
 	<section class="hero">
 		<div class="copy">
