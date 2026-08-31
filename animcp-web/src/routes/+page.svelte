@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ProjectLibrary from '$lib/features/editor/ProjectLibrary.svelte';
+	import MotionLibrary from '$lib/features/motion/MotionLibrary.svelte';
 </script>
 
-<ProjectLibrary />
+<MotionLibrary />

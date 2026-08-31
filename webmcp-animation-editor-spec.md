@@ -1,6 +1,6 @@
 # AniMCP — WebMCP Vector Animation Editor Specification
 
-**Status:** Authoritative product and technical specification  
+**Status:** Archived v1 specification — retained vector editor only. New v2 motion work follows `motion-editor-pivot-plan.md` and the README.
 **Version:** 1.0  
 **Date:** 2026-08-31  
 **Primary application:** `animcp-web`  
