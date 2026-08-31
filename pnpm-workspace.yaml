@@ -4,5 +4,4 @@ packages:
 allowBuilds:
   canvas: false
   esbuild: true
-
   workerd: true
