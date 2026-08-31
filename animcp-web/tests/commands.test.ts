@@ -42,7 +42,8 @@ function setup() {
 			assets: [],
 			layers: []
 		})),
-		captureLottieFrames: vi.fn(async () => ({ frames: [], width: 100, height: 100 }))
+		captureLottieFrames: vi.fn(async () => ({ frames: [], width: 100, height: 100 })),
+		recordVideo: vi.fn(async () => new Blob(['video'], { type: 'video/mp4' }))
 	};
 	const commands = createEditorCommands({
 		getProject: () => project,
@@ -114,5 +115,12 @@ describe('editor commands', () => {
 			lottieMode: 'raster'
 		});
 		expect(project.revision).toBe(3);
+	});
+
+	it('delegates MP4 export with the saved duration and frame rate', async () => {
+		const test = setup();
+		const video = await test.commands.exportVideo();
+		expect(video.type).toBe('video/mp4');
+		expect(test.runtime.recordVideo).toHaveBeenCalledWith(test.project().exportSettings);
 	});
 });

@@ -23,6 +23,9 @@ importers:
       p5:
         specifier: ^2.3.2
         version: 2.3.2
+      p5.brush:
+        specifier: ^2.2.2
+        version: 2.2.2(p5@2.3.2)
       shadcn-svelte:
         specifier: ^1.5.1
         version: 1.5.1(svelte@5.57.0(@typescript-eslint/types@8.68.0))
@@ -1843,6 +1846,11 @@ packages:
     resolution: {integrity: sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==}
     engines: {node: '>=10'}
 
+  p5.brush@2.2.2:
+    resolution: {integrity: sha512-eC0qYrMfOpo9T0DtI9JOJEFqvmbkkD+6sEEWy+8fDMo60rbP2Rzi5uxmV0D20oKazugWHUTCXvmim8xuGs/UdA==}
+    peerDependencies:
+      p5: ^2.2
+
   p5@2.3.2:
     resolution: {integrity: sha512-DlX4rVQb9R2Z16XtTTNN/1zf7FZWy55ApA6ZS0GNJBDraymJcd9kbxmpIDKYnVxiXrchgb2YckWsmm+TSEJVPg==}
 
@@ -2086,6 +2094,9 @@ packages:
 
   simple-get@3.1.1:
     resolution: {integrity: sha512-CQ5LTKGfCpvE1K0n2us+kuMPbk/q0EKl82s4aheV9oXjFEz6W/Y7oQFVJuU6QG77hRT4Ghb5RURteF5vnWjupA==}
+
+  simplex-noise@4.0.3:
+    resolution: {integrity: sha512-qSE2I4AngLQG7BXqoZj51jokT4WUXe8mOBrvfOXpci8+6Yu44+/dD5zqDpOx3Ux792eamTd2lLcI8jqFntk/lg==}
 
   sirv@3.0.2:
     resolution: {integrity: sha512-2wcC/oGxHis/BoHkkPwldgiPSYcpZK3JU28WoMVv55yHJgcZ8rlXvuG9iZggz+sU1d4bRgIGASwyWqjxu3FM0g==}
@@ -4048,6 +4059,11 @@ snapshots:
     dependencies:
       p-limit: 3.1.0
 
+  p5.brush@2.2.2(p5@2.3.2):
+    dependencies:
+      p5: 2.3.2
+      simplex-noise: 4.0.3
+
   p5@2.3.2:
     dependencies:
       '@davepagurek/bezier-path': 0.0.7
@@ -4276,6 +4292,8 @@ snapshots:
       once: 1.4.0
       simple-concat: 1.0.1
     optional: true
+
+  simplex-noise@4.0.3: {}
 
   sirv@3.0.2:
     dependencies:

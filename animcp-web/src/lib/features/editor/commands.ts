@@ -23,6 +23,7 @@ export interface SketchRuntimeHandle {
 		settings: ExportSettings,
 		onProgress?: (progress: number) => void
 	): Promise<{ frames: string[]; width: number; height: number }>;
+	recordVideo(settings: ExportSettings): Promise<Blob>;
 }
 
 type Dependencies = {
@@ -33,7 +34,7 @@ type Dependencies = {
 
 export function createEditorCommands(deps: Dependencies) {
 	let replacingSource = false;
-	let exportingLottie = false;
+	let exporting = false;
 
 	function commit(changes: Partial<P5Project>) {
 		const project = deps.getProject();
@@ -65,7 +66,7 @@ export function createEditorCommands(deps: Dependencies) {
 		},
 
 		async replaceSource(source: string, expectedRevision?: number) {
-			if (exportingLottie) throw new Error('Wait for the Lottie export to finish.');
+			if (exporting) throw new Error('Wait for the export to finish.');
 			if (replacingSource) throw new Error('A source replacement is already in progress.');
 			assertRevision(expectedRevision);
 			if (!source.trim() || source.length > 200_000)
@@ -95,7 +96,7 @@ export function createEditorCommands(deps: Dependencies) {
 		},
 
 		patchConfig(patches: ConfigPatch[], expectedRevision?: number) {
-			if (exportingLottie) throw new Error('Wait for the Lottie export to finish.');
+			if (exporting) throw new Error('Wait for the export to finish.');
 			if (replacingSource) throw new Error('Wait for the source replacement to finish.');
 			assertRevision(expectedRevision);
 			if (!Array.isArray(patches) || patches.length === 0 || patches.length > 50)
@@ -111,7 +112,7 @@ export function createEditorCommands(deps: Dependencies) {
 		},
 
 		updateExportSettings(settings: ExportSettings) {
-			if (replacingSource || exportingLottie)
+			if (replacingSource || exporting)
 				throw new Error('Wait for the current operation to finish.');
 			validateExportSettings(settings);
 			const project = deps.getProject();
@@ -125,13 +126,13 @@ export function createEditorCommands(deps: Dependencies) {
 		},
 
 		control(action: PlaybackAction) {
-			if (exportingLottie) throw new Error('Wait for the Lottie export to finish.');
+			if (exporting) throw new Error('Wait for the export to finish.');
 			deps.runtime().control(action);
 			return { action };
 		},
 
 		capture() {
-			if (exportingLottie) throw new Error('Wait for the Lottie export to finish.');
+			if (exporting) throw new Error('Wait for the export to finish.');
 			return deps.runtime().capture();
 		},
 
@@ -140,9 +141,9 @@ export function createEditorCommands(deps: Dependencies) {
 		},
 
 		async exportLottie(onProgress?: (progress: number) => void): Promise<LottieDocument> {
-			if (exportingLottie || replacingSource)
+			if (exporting || replacingSource)
 				throw new Error('Another editor operation is already in progress.');
-			exportingLottie = true;
+			exporting = true;
 			const project = deps.getProject();
 			const settings = { ...project.exportSettings };
 			try {
@@ -163,7 +164,18 @@ export function createEditorCommands(deps: Dependencies) {
 					capture.frames
 				);
 			} finally {
-				exportingLottie = false;
+				exporting = false;
+			}
+		},
+
+		async exportVideo() {
+			if (exporting || replacingSource)
+				throw new Error('Another editor operation is already in progress.');
+			exporting = true;
+			try {
+				return await deps.runtime().recordVideo({ ...deps.getProject().exportSettings });
+			} finally {
+				exporting = false;
 			}
 		}
 	};

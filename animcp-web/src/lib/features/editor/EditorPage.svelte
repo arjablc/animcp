@@ -27,6 +27,7 @@
 	let mobileTab = $state<'source' | 'preview' | 'controls'>('preview');
 	let applying = $state(false);
 	let exportDialogOpen = $state(false);
+	let videoExporting = $state(false);
 	let nativeLottieSupported = $state(false);
 
 	// UI and WebMCP actions share this command boundary, so persistence and validation stay consistent.
@@ -121,6 +122,18 @@
 		}
 	}
 
+	async function exportMp4() {
+		videoExporting = true;
+		error = '';
+		try {
+			download(await commands.exportVideo(), `${filename()}.mp4`);
+		} catch (cause) {
+			error = cause instanceof Error ? cause.message : 'MP4 export failed.';
+		} finally {
+			videoExporting = false;
+		}
+	}
+
 	function filename() {
 		return (
 			project?.name
@@ -173,6 +186,13 @@
 				>
 				<Button variant="outline" size="sm" class="export png-export" onclick={exportPng}
 					>Export PNG</Button
+				>
+				<Button
+					variant="outline"
+					size="sm"
+					class="export"
+					onclick={exportMp4}
+					disabled={videoExporting}>{videoExporting ? 'Recording...' : 'Export MP4'}</Button
 				>
 				<Button variant="outline" size="sm" class="export" onclick={() => (exportDialogOpen = true)}
 					>Export Lottie</Button

@@ -7,7 +7,7 @@
 </script>
 
 <Card class="project-card">
-	<a href={`/projects/${project.id}`}>
+	<a href={`/legacy/projects/${project.id}`}>
 		<div class="project-preview"><span>{project.name.slice(0, 2).toUpperCase()}</span></div>
 		<h3>{project.name}</h3>
 		<p>Revision {project.revision} · {new Date(project.updatedAt).toLocaleDateString()}</p>

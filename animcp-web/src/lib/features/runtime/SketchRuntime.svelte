@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, tick } from 'svelte';
+	import p5BrushSource from 'virtual:p5-brush-runtime';
 	import p5Source from 'virtual:p5-runtime';
 	import type { ConfigObject, SketchDefinition } from '$lib/features/config/schema';
 	import type { PlaybackAction } from '$lib/features/editor/commands';
@@ -31,7 +32,7 @@
 	const requests = new Map<string, Deferred<unknown>>();
 	const progressCallbacks = new Map<string, (progress: number) => void>();
 	// Replacing `srcdoc` creates a clean sandbox whenever the generation changes.
-	let srcdoc = $derived(runtimeDocument(p5Source, generation));
+	let srcdoc = $derived(runtimeDocument(p5Source, p5BrushSource, generation));
 
 	function handleMessage(event: MessageEvent) {
 		if (event.source !== frame?.contentWindow || !event.data || typeof event.data !== 'object')
@@ -83,6 +84,13 @@
 				width: message.width,
 				height: message.height
 			});
+		} else if (message.type === 'video-recorded') {
+			resolveRequest(
+				message.requestId,
+				message.blob instanceof Blob
+					? message.blob
+					: new Error('The runtime returned an invalid MP4 video.')
+			);
 		} else if (message.type === 'lottie-export-progress' && typeof message.progress === 'number') {
 			progressCallbacks.get(message.requestId as string)?.(message.progress);
 		} else if (message.type === 'export-failed') {
@@ -171,6 +179,23 @@
 				60_000,
 				'Raster Lottie export timed out.',
 				onProgress
+			);
+		} finally {
+			await loadSource(currentSource);
+			await start(currentConfig, previousPlayback === 'paused');
+		}
+	}
+
+	export async function recordVideo(settings: ExportSettings) {
+		const previousPlayback = playback;
+		await loadSource(currentSource);
+		await start(currentConfig, true);
+		try {
+			return await request<Blob>(
+				'record-video',
+				{ settings },
+				settings.durationSeconds * 1000 + 10_000,
+				'MP4 export timed out.'
 			);
 		} finally {
 			await loadSource(currentSource);

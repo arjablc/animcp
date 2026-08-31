@@ -49,6 +49,7 @@
 		"clsx": "^2.1.1",
 		"fabric": "6.9.0",
 		"p5": "^2.3.2",
+		"p5.brush": "^2.2.2",
 		"shadcn-svelte": "^1.5.1",
 		"tailwind-merge": "^3.6.0",
 		"tailwind-variants": "^3.3.1",

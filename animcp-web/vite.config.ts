@@ -6,19 +6,28 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
-const p5Root = resolve(dirname(createRequire(import.meta.url).resolve('p5')), '..');
+const require = createRequire(import.meta.url);
+const p5Root = resolve(dirname(require.resolve('p5')), '..');
 const p5Runtime = '\0p5-runtime';
+const p5BrushRuntime = '\0p5-brush-runtime';
 
 export default defineConfig({
 	plugins: [
 		tailwindcss(),
 		{
 			name: 'p5-runtime-source',
-			resolveId: (id) => (id === 'virtual:p5-runtime' ? p5Runtime : undefined),
-			load: (id) =>
-				id === p5Runtime
-					? `export default ${JSON.stringify(readFileSync(resolve(p5Root, 'lib/p5.min.js'), 'utf8'))}`
-					: undefined
+			resolveId: (id) =>
+				id === 'virtual:p5-runtime'
+					? p5Runtime
+					: id === 'virtual:p5-brush-runtime'
+						? p5BrushRuntime
+						: undefined,
+			load: (id) => {
+				if (id === p5Runtime)
+					return `export default ${JSON.stringify(readFileSync(resolve(p5Root, 'lib/p5.min.js'), 'utf8'))}`;
+				if (id === p5BrushRuntime)
+					return `export default ${JSON.stringify(readFileSync(require.resolve('p5.brush'), 'utf8'))}`;
+			}
 		},
 		sveltekit({
 			compilerOptions: {

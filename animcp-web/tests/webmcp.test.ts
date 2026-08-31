@@ -46,7 +46,8 @@ describe('p5 WebMCP', () => {
 			ok: true,
 			revision: 1,
 			runtimeStatus: 'running',
-			lottie: { nativeSupported: true }
+			lottie: { nativeSupported: true },
+			brush: { supported: true, requiresWebGL: true }
 		});
 	});
 });

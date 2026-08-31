@@ -1189,3 +1189,25 @@ The specification is implemented when:
 - [Fabric.js path controls](https://fabricjs.com/api/fabric/namespaces/controlsutils/functions/createpathcontrols/)
 - [Fabric.js custom controls](https://fabricjs.com/demos/custom-controls/)
 - [WebMCP Community Group draft](https://webmachinelearning.github.io/webmcp/)
+
+
+See this is not what I wanted
+
+- The editor is fine
+- In the timeline there we can create a flip book: which will not be keyframes but actual frame
+- We will specify what happens give the end position
+- Then the mcp will create the in between animations. 
+
+Currently it just looks like some generic ass animation with keframes thingy. 
+
+The changes that needs to be made: 
+- Remove keyframing from the ui
+- The user creates/draws somthing say on frame 1 
+- And then the user creates something else in frame 2 
+- The ai's job is to go from frame 1 to frame 2
+- The user is able to specify what happens in between as well. 
+
+Can you build that ? 
+The ui: 
+Others the same: 
+timeline, with the ability to add frames, also the ability to tell 

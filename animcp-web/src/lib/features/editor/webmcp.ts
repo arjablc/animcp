@@ -43,7 +43,8 @@ export async function registerP5Tools(callbacks: Callbacks, signal?: AbortSignal
 					lottie: {
 						nativeSupported: callbacks.commands.supportsNativeLottie(),
 						settings: project.exportSettings
-					}
+					},
+					brush: { supported: true, requiresWebGL: true }
 				};
 			}
 		),
