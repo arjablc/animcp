@@ -1,0 +1,806 @@
+<script lang="ts">
+	import { Button } from '$lib/components/ui/button';
+	import { Checkbox } from '$lib/components/ui/checkbox';
+	import {
+		Play,
+		Pause,
+		SkipBack,
+		ChevronDown,
+		ChevronRight,
+		ZoomIn,
+		ZoomOut,
+		Repeat2,
+		Film
+	} from '@lucide/svelte';
+	import type { MotionSession } from './session.svelte';
+	import type { Layer, Key } from './model';
+	import { animationSegments, keyframeMoveBounds } from './editing';
+	let { session }: { session: MotionSession } = $props();
+	let zoom = $state(8),
+		collapsed = $state<string[]>([]),
+		scroller = $state<HTMLDivElement>() as HTMLDivElement,
+		content = $state<HTMLDivElement>() as HTMLDivElement;
+	let scrub = $state(false),
+		drag = $state<{
+			x: number;
+			ids: string[];
+			frames: number[];
+			min: number;
+			max: number;
+			revision: number;
+			delta: number;
+			layerId: string;
+			property: string;
+		} | null>(null);
+	const labelWidth = 190;
+	const duration = $derived(session.project.composition.durationFrames);
+	const trackWidth = $derived(duration * zoom + 80);
+	const tickStep = $derived(zoom < 4 ? 30 : zoom < 8 ? 15 : 10);
+	function seek(e: PointerEvent) {
+		const rect = content.getBoundingClientRect();
+		session.seek(
+			Math.max(0, Math.min(duration - 1, Math.round((e.clientX - rect.left - labelWidth) / zoom)))
+		);
+	}
+	function startScrub(e: PointerEvent) {
+		if (e.button !== 0) return;
+		e.preventDefault();
+		session.playing = false;
+		scrub = true;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		seek(e);
+	}
+	function move(e: PointerEvent) {
+		if (scrub) seek(e);
+		if (drag) {
+			const raw = Math.round((e.clientX - drag.x) / zoom),
+				min = drag.min,
+				max = drag.max;
+			drag = { ...drag, delta: Math.max(min, Math.min(max, raw)) };
+		}
+	}
+	function finish() {
+		scrub = false;
+		const d = drag;
+		drag = null;
+		if (d?.delta) {
+			try {
+				session.commit(
+					[{ name: 'move_keyframes', input: { keyframeIds: d.ids, frames: d.delta } }],
+					'Moved animation',
+					'human',
+					d.revision
+				);
+				session.error = '';
+			} catch (e) {
+				session.error = String(e);
+			}
+		}
+	}
+	function startBar(
+		e: PointerEvent,
+		l: Layer,
+		property: string,
+		start: Key,
+		end?: Key,
+		edge?: 'start' | 'end'
+	) {
+		if (e.button !== 0) return;
+		e.stopPropagation();
+		e.preventDefault();
+		session.playing = false;
+		session.select([l.id], end ? [start.id, end.id] : [start.id], [property]);
+		const keys = edge ? (edge === 'start' ? [start] : [end!]) : end ? [start, end] : [start];
+		const [min, max] = keyframeMoveBounds(
+			l,
+			property,
+			keys.map((k) => k.id),
+			duration
+		);
+		drag = {
+			min,
+			max,
+			x: e.clientX,
+			ids: keys.map((k) => k.id),
+			frames: keys.map((k) => k.frame),
+			revision: session.project.revision,
+			delta: 0,
+			layerId: l.id,
+			property
+		};
+	}
+	function frame(k: Key) {
+		return k.frame + (drag?.ids.includes(k.id) ? drag.delta : 0);
+	}
+	function toggle(id: string) {
+		collapsed = collapsed.includes(id) ? collapsed.filter((i) => i !== id) : [...collapsed, id];
+	}
+	function wheel(e: WheelEvent) {
+		if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+			e.preventDefault();
+			scroller.scrollLeft += e.deltaX || e.deltaY;
+		}
+	}
+	function keyboardSeek(e: KeyboardEvent) {
+		if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+			e.preventDefault();
+			e.stopPropagation();
+			session.playing = false;
+			session.seek(
+				e.key === 'Home'
+					? 0
+					: e.key === 'End'
+						? duration - 1
+						: Math.max(
+								0,
+								Math.min(
+									duration - 1,
+									session.context.currentFrame +
+										(e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 10 : 1)
+								)
+							)
+			);
+		}
+	}
+</script>
+
+<svelte:window
+	onpointermove={move}
+	onpointerup={finish}
+	onpointercancel={() => {
+		scrub = false;
+		drag = null;
+	}}
+/>
+
+<section class="timeline" aria-label="Animation timeline">
+	<div class="timeline-toolbar">
+		<div class="transport">
+			<Button
+				variant="ghost"
+				size="icon-xs"
+				class="editor-icon"
+				aria-label="Go to start"
+				title="Go to start"
+				onclick={() => {
+					session.playing = false;
+					session.seek(0);
+				}}><SkipBack /></Button
+			><Button
+				variant="ghost"
+				size="icon-sm"
+				class="timeline-play"
+				aria-label={session.playing ? 'Pause' : 'Play'}
+				title="Play / pause · Space"
+				onclick={() => (session.playing = !session.playing)}
+				>{#if session.playing}<Pause size={14} />{:else}<Play size={14} />{/if}</Button
+			><span class="timecode"
+				>{String(
+					Math.floor(session.context.currentFrame / session.project.composition.fps)
+				).padStart(2, '0')}:{String(
+					session.context.currentFrame % session.project.composition.fps
+				).padStart(2, '0')}<small> / {duration - 1}f</small></span
+			>
+		</div>
+		<span class="timeline-title"><Film size={13} /> Timeline</span><label
+			class:enabled={session.autoKey}
+			class="auto-key"
+			><Checkbox
+				aria-label="Auto-key"
+				class="auto-checkbox"
+				checked={session.autoKey}
+				onCheckedChange={(checked) => (session.autoKey = checked)}
+			/><span>Auto-key</span></label
+		><span class="timeline-spacer"></span><span class="fps"
+			><Repeat2 size={12} />{session.project.composition.fps} fps</span
+		>
+		<div class="timeline-zoom">
+			<Button
+				variant="ghost"
+				size="icon-xs"
+				class="editor-icon"
+				aria-label="Zoom out timeline"
+				title="Zoom out"
+				disabled={zoom <= 2}
+				onclick={() => (zoom = Math.max(2, zoom - 2))}><ZoomOut /></Button
+			><span>{zoom}px/f</span><Button
+				variant="ghost"
+				size="icon-xs"
+				class="editor-icon"
+				aria-label="Zoom in timeline"
+				title="Zoom in"
+				disabled={zoom >= 24}
+				onclick={() => (zoom = Math.min(24, zoom + 2))}><ZoomIn /></Button
+			>
+		</div>
+	</div>
+	<!-- Keyboard focus makes the horizontal scroll region accessible. -->
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+	<div
+		class="timeline-scroll"
+		bind:this={scroller}
+		onwheel={wheel}
+		role="region"
+		aria-label="Scrollable timeline"
+		tabindex="0"
+	>
+		<div class="timeline-content" bind:this={content} style:width={`${labelWidth + trackWidth}px`}>
+			<div class="ruler-row">
+				<div class="sticky-label ruler-label">Layers & animation</div>
+				<div
+					class="ruler"
+					role="slider"
+					tabindex="0"
+					aria-label="Timeline playhead"
+					aria-valuemin={0}
+					aria-valuemax={duration - 1}
+					aria-valuenow={session.context.currentFrame}
+					style:width={`${trackWidth}px`}
+					onpointerdown={startScrub}
+					onpointercancel={() => {
+						scrub = false;
+						drag = null;
+					}}
+					onkeydown={keyboardSeek}
+				>
+					{#each Array.from({ length: Math.ceil(duration / tickStep) }, (_, i) => i * tickStep) as tick}<span
+							class="ruler-tick"
+							style:left={`${tick * zoom}px`}>{tick}<i></i></span
+						>{/each}<span
+						class="playhead-cap"
+						style:left={`${session.context.currentFrame * zoom}px`}
+					></span>
+				</div>
+			</div>
+			<div class="tracks" style:min-height="150px">
+				<div
+					class="grid-lines"
+					style:left={`${labelWidth}px`}
+					style:background-size={`${tickStep * zoom}px 100%`}
+				></div>
+				{#each [...session.project.layers].reverse() as l (l.id)}{@const animated = Object.entries(
+						l.tracks
+					).filter(([, t]) => t.keys.length)}
+					<div class="layer-track">
+						<div
+							class="sticky-label layer-track-label"
+							class:selected={session.context.selectedLayerIds.includes(l.id)}
+						>
+							<button
+								class="expand-track"
+								aria-label={`${collapsed.includes(l.id) ? 'Expand' : 'Collapse'} ${l.name} animation`}
+								disabled={!animated.length}
+								onclick={() => toggle(l.id)}
+								>{#if collapsed.includes(l.id)}<ChevronRight size={12} />{:else}<ChevronDown
+										size={12}
+									/>{/if}</button
+							><button class="track-name" onclick={() => session.select([l.id])}>{l.name}</button
+							><span class="track-count">{animated.length || ''}</span>
+						</div>
+						<button
+							class="layer-lane"
+							aria-label={`Select ${l.name} track`}
+							onclick={() => session.select([l.id])}
+							style:width={`${trackWidth}px`}
+							>{#if !animated.length}<span>Add keyframes or enable Auto-key to animate</span
+								>{:else if collapsed.includes(l.id)}<span
+									>{animated.length} animated {animated.length === 1
+										? 'property'
+										: 'properties'}</span
+								>{/if}</button
+						>
+					</div>
+					{#if !collapsed.includes(l.id)}{#each animated as [property, track]}<div
+								class="property-track"
+							>
+								<button
+									class="sticky-label property-label"
+									class:selected={session.context.selectedLayerIds.includes(l.id) &&
+										session.context.selectedProperties.includes(property)}
+									title={property}
+									onclick={() => session.select([l.id], [], [property])}
+									><span class="property-dot"></span><span
+										>{property
+											.replace(/^gradient\.stop\.[^.]+\./, 'stop · ')
+											.replace('gradient.', '')}</span
+									></button
+								>
+								<div class="animation-lane" style:width={`${trackWidth}px`}>
+									{#each animationSegments(l, property) as segment (segment.id)}{@const active =
+											session.context.selectedKeyframeIds.includes(segment.start.id) &&
+											session.context.selectedKeyframeIds.includes(segment.end.id)}
+										<div
+											class="animation-segment"
+											class:active
+											class:locked={l.locked}
+											style:left={`${frame(segment.start) * zoom}px`}
+											style:width={`${Math.max(6, (frame(segment.end) - frame(segment.start)) * zoom)}px`}
+										>
+											<button
+												class="bar-body"
+												disabled={l.locked}
+												aria-label={`${l.name} ${property} animation ${segment.start.frame} to ${segment.end.frame}`}
+												title={`${property} · ${segment.start.frame}–${segment.end.frame}f · drag to move, click to edit easing`}
+												onpointerdown={(e) => startBar(e, l, property, segment.start, segment.end)}
+												onpointercancel={() => (drag = null)}
+												onclick={() =>
+													session.select([l.id], [segment.start.id, segment.end.id], [property])}
+												><span>{segment.end.frame - segment.start.frame}f</span><svg
+													viewBox="0 0 20 12"
+													aria-hidden="true"
+													><path
+														d={segment.start.easing.type === 'hold'
+															? 'M1 11H19V1'
+															: segment.start.easing.type === 'linear'
+																? 'M1 11L19 1'
+																: 'M1 11C11 11 9 1 19 1'}
+													/></svg
+												></button
+											>{#if active && !l.locked}<button
+													class="bar-edge start"
+													aria-label="Drag animation start"
+													title="Drag animation start"
+													onpointerdown={(e) =>
+														startBar(e, l, property, segment.start, segment.end, 'start')}
+													onpointercancel={() => (drag = null)}
+												></button><button
+													class="bar-edge end"
+													aria-label="Drag animation end"
+													title="Drag animation end"
+													onpointerdown={(e) =>
+														startBar(e, l, property, segment.start, segment.end, 'end')}
+													onpointercancel={() => (drag = null)}
+												></button>{/if}
+										</div>{/each}{#if track.keys.length === 1}{@const k = track.keys[0]}<button
+											class="single-key"
+											disabled={l.locked}
+											style:left={`${frame(k) * zoom}px`}
+											aria-label={`${l.name} ${property} key at ${k.frame}`}
+											title="One key · add another at a later frame to create animation"
+											onpointerdown={(e) => startBar(e, l, property, k)}
+											onpointercancel={() => (drag = null)}
+											onclick={() => session.select([l.id], [k.id], [property])}
+										></button>{/if}
+								</div>
+							</div>{/each}{/if}{/each}{#if !session.project.layers.length}<p
+						class="timeline-empty"
+						style:margin-left={`${labelWidth + 24}px`}
+					>
+						Your animation starts here. Add a layer from the toolbar.
+					</p>{/if}
+				<div
+					class="playhead-line"
+					style:left={`${labelWidth + session.context.currentFrame * zoom}px`}
+				>
+					<button
+						aria-label="Drag playhead"
+						title="Drag playhead"
+						onpointerdown={startScrub}
+						onpointercancel={() => (scrub = false)}
+					></button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="timeline-footer">
+		<span
+			>{session.context.selectedKeyframeIds.length === 2
+				? 'Drag animation to move · drag edges to trim · easing in Properties'
+				: 'Drag the ruler to scrub · Shift + scroll to pan horizontally'}</span
+		><span>{session.autoKey ? 'Auto-key on · edits create animation' : 'Auto-key off'}</span>
+	</div>
+</section>
+
+<style>
+	.timeline {
+		height: 254px;
+		min-height: 180px;
+		flex: 0 0 254px;
+		background: #171c24;
+		border-top: 1px solid #353d49;
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		color: #99a9be;
+	}
+	.timeline-toolbar {
+		height: 44px;
+		min-height: 44px;
+		display: flex;
+		align-items: center;
+		gap: 20px;
+		padding: 0 15px;
+		border-bottom: 1px solid #2b333f;
+	}
+	.transport {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+	}
+	.transport :global(.timeline-play) {
+		background: #c8e4a4;
+		color: #20291d;
+		border-radius: 6px;
+		width: 28px;
+		height: 27px;
+		padding: 5px;
+	}
+	.transport :global(.timeline-play:hover) {
+		background: #d9f5b6;
+	}
+	.timecode {
+		font: 11px monospace;
+		color: #c4d0df;
+		margin-left: 6px;
+	}
+	.timecode small {
+		font: 9px monospace;
+		color: #677b92;
+	}
+	.timeline-title {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		font-size: 10px;
+		color: #9bacc0;
+	}
+	.auto-key {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 10px;
+		color: #7f90a6;
+		cursor: pointer;
+	}
+	.auto-key.enabled {
+		color: #d6ecb8;
+	}
+	.auto-key :global(.auto-checkbox) {
+		width: 13px;
+		height: 13px;
+		border: 1px solid #576574;
+		border-radius: 3px;
+		cursor: pointer;
+		background: transparent;
+	}
+	.auto-key :global(.auto-checkbox[data-state='checked']) {
+		background: #cce6a9;
+		border-color: #cce6a9;
+		color: #192417;
+	}
+	.timeline-spacer {
+		flex: 1;
+	}
+	.fps {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font: 9px monospace;
+		color: #73869d;
+	}
+	.timeline-zoom {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.timeline-zoom > span {
+		font: 9px monospace;
+		color: #899bb2;
+		width: 34px;
+		text-align: center;
+	}
+	.timeline-scroll {
+		overflow: auto;
+		flex: 1;
+		min-height: 0;
+		min-width: 0;
+		overscroll-behavior: contain;
+		scrollbar-gutter: stable;
+	}
+	.timeline-content {
+		position: relative;
+		min-width: 100%;
+		min-height: 100%;
+	}
+	.ruler-row {
+		display: flex;
+		position: sticky;
+		top: 0;
+		z-index: 5;
+		background: #1c222c;
+		height: 29px;
+		border-bottom: 1px solid #303947;
+	}
+	.sticky-label {
+		position: sticky;
+		left: 0;
+		width: 190px;
+		min-width: 190px;
+		z-index: 3;
+		box-sizing: border-box;
+		background: #191f29;
+	}
+	.ruler-label {
+		z-index: 6;
+		padding: 8px 14px;
+		font-size: 9px;
+		color: #74889f;
+		background: #1c222c;
+		border-right: 1px solid #313a46;
+	}
+	.ruler {
+		position: relative;
+		cursor: ew-resize;
+		touch-action: none;
+		flex-shrink: 0;
+		outline-offset: -2px;
+	}
+	.ruler-tick {
+		position: absolute;
+		top: 4px;
+		font: 9px monospace;
+		color: #75869c;
+		padding-left: 4px;
+		pointer-events: none;
+	}
+	.ruler-tick i {
+		position: absolute;
+		top: 15px;
+		left: 0;
+		height: 8px;
+		border-left: 1px solid #536074;
+	}
+	.playhead-cap {
+		position: absolute;
+		top: 17px;
+		width: 10px;
+		height: 12px;
+		transform: translateX(-50%);
+		background: #d0efac;
+		clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+		pointer-events: none;
+	}
+	.tracks {
+		position: relative;
+	}
+	.grid-lines {
+		position: absolute;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		background-image: linear-gradient(90deg, #2c354350 1px, transparent 1px);
+		pointer-events: none;
+	}
+	.layer-track,
+	.property-track {
+		height: 29px;
+		display: flex;
+		position: relative;
+	}
+	.layer-track-label {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		padding: 0 10px;
+		border-right: 1px solid #303947;
+	}
+	.layer-track-label.selected {
+		background: #29332d;
+	}
+	.expand-track,
+	.track-name {
+		border: 0;
+		background: transparent;
+		color: #a9b9cb;
+		padding: 0;
+		cursor: pointer;
+	}
+	.expand-track {
+		width: 15px;
+		height: 22px;
+		display: grid;
+		place-items: center;
+	}
+	.expand-track:disabled {
+		opacity: 0.3;
+		cursor: default;
+	}
+	.track-name {
+		font-size: 10px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		text-align: left;
+		flex: 1;
+	}
+	.track-count {
+		font: 9px monospace;
+		color: #63768d;
+	}
+	.layer-lane {
+		border: 0;
+		background: #20283444;
+		text-align: left;
+		padding: 0 14px;
+		flex-shrink: 0;
+		cursor: pointer;
+	}
+	.layer-lane span {
+		font-size: 9px;
+		color: #62758e;
+	}
+	.property-label {
+		display: flex;
+		align-items: center;
+		gap: 9px;
+		border: 0;
+		border-right: 1px solid #303947;
+		text-align: left;
+		padding: 0 13px 0 31px;
+		color: #7f94af;
+		font-size: 9px;
+		cursor: pointer;
+	}
+	.property-label > span:last-child {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.property-label.selected {
+		color: #c9dcad;
+		background: #25302a;
+	}
+	.property-dot {
+		width: 4px;
+		height: 4px;
+		border-radius: 50%;
+		background: #648a83;
+		flex-shrink: 0;
+	}
+	.animation-lane {
+		position: relative;
+		flex-shrink: 0;
+	}
+	.animation-segment {
+		position: absolute;
+		top: 5px;
+		height: 19px;
+		border-radius: 4px;
+		background: #405747;
+		border: 1px solid #698166;
+		box-sizing: border-box;
+		color: #bed4b3;
+	}
+	.animation-segment:nth-child(even) {
+		background: #415269;
+		border-color: #6a8197;
+		color: #b4cbe2;
+	}
+	.animation-segment.active {
+		background: #647e4c;
+		color: #f1ffdf;
+		border-color: #d6efa8;
+		box-shadow: 0 0 0 1px #cceea31f;
+	}
+	.bar-body {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 5px;
+		width: 100%;
+		height: 100%;
+		padding: 0 8px;
+		border: 0;
+		background: transparent;
+		color: inherit;
+		overflow: hidden;
+		cursor: grab;
+		touch-action: none;
+		text-align: left;
+		font: 8px monospace;
+		border-radius: 3px;
+	}
+	.bar-body:active {
+		cursor: grabbing;
+	}
+	.bar-body svg {
+		width: 16px;
+		min-width: 16px;
+		height: 10px;
+		opacity: 0.7;
+		pointer-events: none;
+	}
+	.bar-body path {
+		stroke: currentColor;
+		fill: none;
+		stroke-width: 1.3;
+	}
+	.bar-body span {
+		pointer-events: none;
+	}
+	.bar-edge {
+		position: absolute;
+		top: 1px;
+		bottom: 1px;
+		width: 8px;
+		border: 0;
+		background: #e0efb8aa;
+		border-radius: 2px;
+		cursor: ew-resize;
+		touch-action: none;
+		padding: 0;
+	}
+	.bar-edge.start {
+		left: 0;
+	}
+	.bar-edge.end {
+		right: 0;
+	}
+	.single-key {
+		position: absolute;
+		top: 7px;
+		width: 8px;
+		height: 15px;
+		transform: translateX(-4px);
+		border: 1px solid #aac392;
+		background: #637958;
+		border-radius: 3px;
+		padding: 0;
+		cursor: grab;
+		touch-action: none;
+	}
+	.locked {
+		opacity: 0.45;
+	}
+	.playhead-line {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 1px;
+		background: #c4e69b;
+		z-index: 2;
+		pointer-events: none;
+	}
+	.playhead-line button {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: -3px;
+		width: 7px;
+		border: 0;
+		padding: 0;
+		background: transparent;
+		cursor: ew-resize;
+		pointer-events: auto;
+		touch-action: none;
+	}
+	.timeline-footer {
+		height: 22px;
+		min-height: 22px;
+		padding: 0 15px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		font-size: 8px;
+		color: #6d8098;
+		border-top: 1px solid #27313e;
+	}
+	.timeline-empty {
+		padding-top: 30px;
+		font-size: 10px;
+		color: #71859f;
+	}
+	@media (max-width: 900px) {
+		.timeline-toolbar {
+			gap: 12px;
+		}
+		.timeline-title,
+		.fps {
+			display: none;
+		}
+		.timeline {
+			height: 230px;
+			flex-basis: 230px;
+		}
+	}
+</style>
