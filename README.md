@@ -1,20 +1,19 @@
 # AniMCP
 
-This monorepo contains two agent-native animation editors.
+AniMCP is a local-first, agent-native vector animation editor. The authoritative product and technical requirements are in [webmcp-animation-editor-spec.md](webmcp-animation-editor-spec.md).
 
-## Layout
+## Application
 
-- `apps/editor`: React SVG animation editor
-- `apps/p5_editor`: SvelteKit p5.js editor with generated controls, WebMCP tools, and vector/raster Lottie JSON export
-- `docs`: experiment records
+The current web application is in `animcp-web`. The editor rebuild is moving from the legacy p5.js source editor to a structured Svelte/Fabric vector animation editor.
 
-## Run the p5 editor
+## Run the web app
 
 ```sh
+cd animcp-web
 pnpm install
-pnpm dev:p5
+pnpm dev
 ```
 
-Run all checks with `pnpm check`, tests with `pnpm test`, and production builds with `pnpm build`.
+From `animcp-web`, run `pnpm check`, `pnpm test`, and `pnpm build`.
 
 The SvelteKit app provides `/healthz`, `/readyz`, and `/api/v1/version` directly.
