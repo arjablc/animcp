@@ -152,7 +152,7 @@ Authentication will be introduced only when it unlocks real SaaS capabilities su
 
 ### 3.4 Local-first project storage
 
-The editor remains usable without the backend.
+The editor remains usable without server-side storage or generation.
 
 Initial persistence:
 
@@ -171,23 +171,23 @@ Editor state
     └── debounced durable save → IndexedDB / Dexie
 ```
 
-The local-first model prevents backend latency from entering basic editing operations and gives good offline/recovery behavior.
+The local-first model prevents network latency from entering basic editing operations and gives good offline/recovery behavior.
 
-### 3.5 A backend will exist, but it is deliberately thin
+### 3.5 Server endpoints stay inside SvelteKit
 
-A Go backend will be included from the beginning as a **stable API/operations boundary**, not as a dependency of the core editor.
+The SvelteKit app owns the small server API and operational endpoints. There is no separate Go service.
 
-The backend is not being added because GA4 requires one; normal Google Analytics web collection runs client-side.
+The API is not being added because GA4 requires one; normal Google Analytics web collection runs client-side.
 
-Initial backend responsibilities:
+Initial server responsibilities:
 
 - health/readiness endpoints
 - version/build metadata
 - operational telemetry where server collection is useful
 - a safe boundary for any small server-only capability introduced during development
-- future SaaS API surface
+- future SaaS API surface within SvelteKit
 
-The editor must remain functional when this backend is unavailable, except for features explicitly implemented as server-only.
+The editor must remain functional when server endpoints are unavailable, except for features explicitly implemented as server-only.
 
 No backend responsibilities during judging:
 
@@ -727,9 +727,9 @@ Do not capture full arguments.
 
 The two mixed-edit events are especially useful because the core product thesis is collaborative human-agent editing of the same live state.
 
-### Go server telemetry
+### SvelteKit server telemetry
 
-The backend may expose:
+The SvelteKit app may expose:
 
 ```text
 GET  /healthz
@@ -740,22 +740,20 @@ POST /api/v1/telemetry
 
 `/api/v1/telemetry` is optional and should only be used for events that genuinely benefit from a server boundary. Do not duplicate every GA4 event through it without a reason.
 
-The Go server should log structured operational data with `slog`.
+Server telemetry should remain optional and use the SvelteKit runtime's logging facilities.
 
 ---
 
-## 13. Backend Architecture
+## 13. Server Architecture
 
-Initial Go service:
+Initial SvelteKit deployment:
 
 ```text
 Cloudflare
     │
-    ├── static Vite app → Cloudflare Pages
-    │
-    └── api.example.com → Go service
-                               │
-                               └── no DB initially
+    └── SvelteKit app and server routes → Cloudflare Workers
+                                             │
+                                             └── no DB initially
 ```
 
 The API must be versioned from the beginning:
@@ -770,7 +768,7 @@ Allow only known frontend origins in production.
 
 ### Configuration
 
-Use environment variables for runtime configuration. There is no OpenAI secret.
+Use SvelteKit/Cloudflare environment variables for runtime configuration. There is no OpenAI secret.
 
 Possible initial values:
 
@@ -1125,4 +1123,3 @@ Checked 2026-08-27:
 - Cloudflare languages/Workers: https://developers.cloudflare.com/workers/languages/
 - Google Analytics developer docs: https://developers.google.com/analytics/devguides/collection/ga4
 - Google Consent Mode: https://developers.google.com/tag-platform/security/concepts/consent-mode
-

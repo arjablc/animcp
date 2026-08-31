@@ -491,9 +491,9 @@ Do not add an OpenAI-funded generation backend simply because the first base64 i
 
 ---
 
-## 15. Go Backend and This Test
+## 15. Server API and This Test
 
-The Go backend should **not** be involved in image transport during this experiment.
+The SvelteKit server API should **not** be involved in image transport during this experiment.
 
 Why:
 
@@ -502,7 +502,7 @@ Why:
 - image data is intentionally local during judging
 - sending large generated assets through the telemetry API would create unnecessary privacy/storage/security concerns
 
-The backend may receive a tiny anonymous test event such as:
+The server API may receive a tiny anonymous test event such as:
 
 ```json
 {
@@ -700,4 +700,3 @@ Checked 2026-08-27:
 - WebMCP Community Group draft, 26 Aug 2026: https://webmachinelearning.github.io/webmcp/
 
 The WebMCP document explicitly describes `document.modelContext`, JSON-schema-described tool inputs, and JSON parsing of tool input arguments. The specification is a Community Group report rather than a W3C Standard, so this project should expect integration details to evolve.
-

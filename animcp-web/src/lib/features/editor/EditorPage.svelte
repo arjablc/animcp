@@ -23,7 +23,7 @@
 	let runtimeStatus = $state('starting');
 	let error = $state('');
 	let webmcp = $state('checking');
-	let backendVersion = $state('offline');
+	let appVersion = $state('dev');
 	let mobileTab = $state<'source' | 'preview' | 'controls'>('preview');
 	let applying = $state(false);
 	let exportDialogOpen = $state(false);
@@ -71,7 +71,7 @@
 		void fetch('/api/v1/version')
 			.then((response) => (response.ok ? response.json() : Promise.reject()))
 			.then((value) => {
-				backendVersion =
+				appVersion =
 					typeof value === 'object' &&
 					value !== null &&
 					'version' in value &&
@@ -204,7 +204,7 @@
 				<footer class="preview-footer">
 					<span>REV {project.revision.toString().padStart(3, '0')}</span>
 					<span>WEBMCP · {webmcp}</span>
-					<span>GO · {backendVersion}</span>
+					<span>APP · {appVersion}</span>
 				</footer>
 				{#if error}
 					<Alert variant="destructive" class="error">
