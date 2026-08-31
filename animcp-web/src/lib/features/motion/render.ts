@@ -49,10 +49,10 @@ export function layerSvg(p: Project, l: Layer, f: number): string {
 	if (l.type === 'ellipse')
 		content = `<ellipse cx="${w / 2}" cy="${h / 2}" rx="${w / 2}" ry="${h / 2}" ${style}/>`;
 	if (l.type === 'text')
-		content = `<text font-family="${xml(l.fontFamily)}" font-size="${l.fontSize}" font-weight="${l.fontWeight}" font-style="${l.fontStyle}" ${style}>${l.text
+		content = `<text x="${l.textAlign === 'left' ? 0 : l.textAlign === 'center' ? w / 2 : w}" text-anchor="${l.textAlign === 'left' ? 'start' : l.textAlign === 'center' ? 'middle' : 'end'}" font-family="${xml(l.fontFamily)}" font-size="${l.fontSize}" font-weight="${l.fontWeight}" font-style="${l.fontStyle}" letter-spacing="${l.letterSpacing}" ${style}>${l.text
 			.split('\n')
 			.map(
-				(line, index) => `<tspan x="0" y="${l.fontSize * (1 + index * 1.2)}">${xml(line)}</tspan>`
+				(line, index) => `<tspan x="${l.textAlign === 'left' ? 0 : l.textAlign === 'center' ? w / 2 : w}" y="${l.fontSize * (1 + index * l.lineHeight)}">${xml(line)}</tspan>`
 			)
 			.join('')}</text>`;
 	if (l.type === 'svg' || l.type === 'png') {

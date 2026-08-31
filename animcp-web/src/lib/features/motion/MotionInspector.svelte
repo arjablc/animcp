@@ -56,6 +56,15 @@
 	function change(changes: Record<string, unknown>) {
 		if (layer) safe(() => session.run('set_layer', { layerId: layer.id, changes }));
 	}
+	function deleteSelectedKeyframes() {
+		if (!layer || !session.context.selectedKeyframeIds.length || !property) return;
+		const keys = layer.tracks[property]?.keys.filter((k) => session.context.selectedKeyframeIds.includes(k.id));
+		if (!keys?.length) return;
+		safe(() => {
+			session.commit(keys.map((k) => ({ name: 'delete_keyframe' as const, input: { layerId: layer!.id, property, frame: k.frame } })), 'Deleted keyframe');
+			session.select([layer!.id], [], [property]);
+		});
+	}
 	function entrance() {
 		if (!layer) return;
 		const f = session.context.currentFrame;
@@ -162,7 +171,7 @@
 							value={l.text}
 							disabled={l.locked}
 							onchange={(e) => change({ text: e.currentTarget.value })}
-						/><FontPicker {session} layer={l} />
+							/><FontPicker {session} layer={l} />
 						<div class="font-options">
 							<span title="Font size"><Type size={13} /></span><NumericInput
 								label="Font size"
@@ -190,6 +199,11 @@
 									change({ fontStyle: l.fontStyle === 'italic' ? 'normal' : 'italic' })}
 								><Italic /></Button
 							>
+							<NumericInput label="Line height" value={l.lineHeight} min={0.1} max={10} step={0.05} disabled={l.locked} oncommit={(v) => change({ lineHeight: v })} />
+							<NumericInput label="Letter spacing" value={l.letterSpacing} min={-100} max={1000} disabled={l.locked} oncommit={(v) => change({ letterSpacing: v })} />
+							<select class="alignment-select" aria-label="Text alignment" value={l.textAlign} disabled={l.locked} onchange={(e) => change({ textAlign: e.currentTarget.value })}>
+								<option value="left">Align left</option><option value="center">Align center</option><option value="right">Align right</option>
+							</select>
 						</div>
 					</section>{/if}{#if l.type !== 'png' && l.type !== 'svg'}<section>
 						<h3>Fill & stroke</h3>
@@ -264,6 +278,7 @@
 					</section>{/if}
 				<section>
 					<h3>Animation</h3>
+					{#if session.context.selectedKeyframeIds.length}<Button variant="ghost" size="sm" class="text-action danger" disabled={l.locked} onclick={deleteSelectedKeyframes}><Trash2 size={12} /> Delete selected keyframe{session.context.selectedKeyframeIds.length === 1 ? '' : 's'}</Button>{/if}
 					<Button
 						variant="ghost"
 						size="sm"
@@ -378,17 +393,28 @@
 		margin-bottom: 9px;
 	}
 	.font-options {
-		display: flex;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 		margin-top: 10px;
 		color: #8596ad;
+	}
+	.font-options > :global(.property-field) {
+		min-width: 0;
+	}
+	.font-options > span {
+		display: none;
 	}
 	.font-options :global(input) {
 		width: 58px;
 	}
 	.font-options select {
-		width: 70px;
+		width: 100%;
+		margin-bottom: 0;
+	}
+	.font-options .alignment-select {
+		grid-column: 1 / -1;
 	}
 	.font-options :global(button) {
 		color: #a6b5c7;

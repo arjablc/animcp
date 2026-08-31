@@ -51,7 +51,8 @@ const ease: Schema = {
 			'y1',
 			'x2',
 			'y2'
-		])
+		]),
+		obj({ type: en('spring'), mass: num, stiffness: num, damping: num, velocity: num }, ['type', 'mass', 'stiffness', 'damping', 'velocity'])
 	]
 };
 const val: Schema = { anyOf: [num, str] };

@@ -17,6 +17,7 @@ export async function rasterizeContent(p: Project, l: Layer): Promise<string> {
 	if (l.type === 'text') {
 		await loadFont(l.fontFamily, l.fontWeight, l.fontStyle, l.text);
 		ctx.font = `${l.fontStyle} ${l.fontWeight} ${l.fontSize}px ${JSON.stringify(l.fontFamily)}`;
+		ctx.textAlign = l.textAlign;
 		let fill: string | CanvasGradient = String(evaluate(l.tracks.fill, 0));
 		if (l.paint.type !== 'solid') {
 			const gradient =
@@ -51,7 +52,7 @@ export async function rasterizeContent(p: Project, l: Layer): Promise<string> {
 		ctx.lineWidth = n('strokeWidth');
 		for (const [index, line] of l.text.split('\n').entries()) {
 			const metrics = ctx.measureText(line),
-				y = l.fontSize * (1 + index * 1.2);
+				y = l.fontSize * (1 + index * l.lineHeight);
 			check(
 				metrics.actualBoundingBoxLeft <= 0.5 &&
 					metrics.actualBoundingBoxRight <= w &&
@@ -59,9 +60,9 @@ export async function rasterizeContent(p: Project, l: Layer): Promise<string> {
 				`Text “${l.name}” exceeds its export bounds. Increase width/height before Lottie export.`
 			);
 			ctx.globalAlpha = clamp(n('paintOpacity'));
-			ctx.fillText(line, 0, y);
+			ctx.fillText(line, l.textAlign === 'left' ? 0 : l.textAlign === 'center' ? w / 2 : w, y);
 			ctx.globalAlpha = 1;
-			if (ctx.lineWidth > 0) ctx.strokeText(line, 0, y);
+			if (ctx.lineWidth > 0) ctx.strokeText(line, l.textAlign === 'left' ? 0 : l.textAlign === 'center' ? w / 2 : w, y);
 		}
 	} else {
 		const asset = p.assets.find((a) => a.id === l.assetId);

@@ -1,7 +1,8 @@
 export type Easing =
 	| { type: 'linear' }
 	| { type: 'hold' }
-	| { type: 'bezier'; x1: number; y1: number; x2: number; y2: number };
+	| { type: 'bezier'; x1: number; y1: number; x2: number; y2: number }
+	| { type: 'spring'; mass: number; stiffness: number; damping: number; velocity: number };
 export type Value = number | string;
 export type Key = { id: string; frame: number; value: Value; easing: Easing };
 export type Track = {
@@ -23,6 +24,9 @@ export type Layer = {
 	fontWeight: number;
 	fontStyle: 'normal' | 'italic';
 	fontSize: number;
+	lineHeight: number;
+	letterSpacing: number;
+	textAlign: 'left' | 'center' | 'right';
 	assetId?: string;
 	paint: Paint;
 	tracks: Record<string, Track>;
@@ -64,6 +68,9 @@ export const presets: Record<string, Easing> = {
 	smooth: { type: 'bezier', x1: 0.4, y1: 0, x2: 0.2, y2: 1 },
 	'strong-out': { type: 'bezier', x1: 0.16, y1: 1, x2: 0.3, y2: 1 },
 	'strong-in': { type: 'bezier', x1: 0.7, y1: 0, x2: 0.84, y2: 0 }
+	, 'spring-gentle': { type: 'spring', mass: 1, stiffness: 100, damping: 14, velocity: 0 }
+	, 'spring-snappy': { type: 'spring', mass: 1, stiffness: 180, damping: 18, velocity: 0 }
+	, 'spring-bouncy': { type: 'spring', mass: 1, stiffness: 120, damping: 6, velocity: 0 }
 };
 export function createLayer(type: Layer['type'], name = type as string): Layer {
 	return {
@@ -77,6 +84,9 @@ export function createLayer(type: Layer['type'], name = type as string): Layer {
 		fontWeight: 400,
 		fontStyle: 'normal',
 		fontSize: 64,
+		lineHeight: 1.2,
+		letterSpacing: 0,
+		textAlign: 'left',
 		paint: { type: 'solid', stops: [] },
 		tracks: Object.fromEntries(
 			Object.entries({
@@ -138,6 +148,16 @@ export function addStop(layer: Layer, offset: number, color: string) {
 	return id;
 }
 export function easingAt(e: Easing, t: number): number {
+	if (e.type === 'spring') {
+		if (t <= 0) return 0;
+		if (t >= 1) return 1;
+		const w0 = Math.sqrt(e.stiffness / e.mass), zeta = e.damping / (2 * Math.sqrt(e.stiffness * e.mass));
+		if (zeta < 1) {
+			const wd = w0 * Math.sqrt(1 - zeta * zeta);
+			return 1 - Math.exp(-zeta * w0 * t) * (Math.cos(wd * t) + ((zeta * w0 - e.velocity) / wd) * Math.sin(wd * t));
+		}
+		return 1 - Math.exp(-w0 * t) * (1 + (w0 - e.velocity) * t);
+	}
 	if (e.type === 'hold') return 0;
 	if (e.type === 'linear') return t;
 	const bez = (a: number, b: number, u: number) =>
@@ -204,12 +224,15 @@ export function string(value: unknown, max = 1000): string {
 	return value;
 }
 export function validateEasing(e: Easing) {
-	check(e && ['linear', 'hold', 'bezier'].includes(e.type), 'Invalid easing');
+	check(e && ['linear', 'hold', 'bezier', 'spring'].includes(e.type), 'Invalid easing');
 	if (e.type === 'bezier') {
 		number(e.x1, 0, 1);
 		number(e.x2, 0, 1);
 		number(e.y1, -10, 10);
-		number(e.y2, -10, 10);
+		 number(e.y2, -10, 10);
+	}
+	if (e.type === 'spring') {
+		number(e.mass, 0.01, 10); number(e.stiffness, 1, 2000); number(e.damping, 0, 200); number(e.velocity, -100, 100);
 	}
 }
 export function validateValue(property: string, v: Value) {
@@ -307,6 +330,12 @@ export function validateProject(input: unknown): Project {
 		check(!/[\u0000-\u001f]/.test(l.fontFamily), 'Invalid font family');
 		number(l.fontWeight, 1, 1000);
 		number(l.fontSize, 1, 1000);
+		if (l.lineHeight === undefined) l.lineHeight = 1.2;
+		if (l.letterSpacing === undefined) l.letterSpacing = 0;
+		if (l.textAlign === undefined) l.textAlign = 'left';
+		number(l.lineHeight, 0.1, 10);
+		number(l.letterSpacing, -100, 1000);
+		check(['left', 'center', 'right'].includes(l.textAlign), 'Invalid text alignment');
 		check(['normal', 'italic'].includes(l.fontStyle), 'Invalid font style');
 		if (l.type === 'png' || l.type === 'svg')
 			check(

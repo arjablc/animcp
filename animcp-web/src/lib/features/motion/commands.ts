@@ -237,7 +237,10 @@ function apply(p: Project, op: Operation): unknown {
 						'fontFamily',
 						'fontWeight',
 						'fontStyle',
-						'fontSize'
+						'fontSize',
+						'lineHeight',
+						'letterSpacing'
+						,'textAlign'
 					].includes(key),
 					'Unsupported layer field'
 				);

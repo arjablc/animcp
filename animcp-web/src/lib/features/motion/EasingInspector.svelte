@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { presets, type Layer, type Key, type Easing } from './model';
+	import { presets, easingAt, type Layer, type Key, type Easing } from './model';
 	import type { MotionSession } from './session.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { ClipboardCopy, ClipboardPaste, Spline, Timer, ArrowRight } from '@lucide/svelte';
@@ -24,6 +24,9 @@
 			([, e]) => JSON.stringify(e) === JSON.stringify(start.easing)
 		)?.[0] ?? 'custom'
 	);
+	const springPath = $derived(start.easing.type === 'spring'
+		? Array.from({ length: 41 }, (_, i) => `${i ? 'L' : 'M'}${20 + i * 5} ${140 - Math.max(-2, Math.min(3, easingAt(start.easing, i / 40))) * 24}`).join('')
+		: '');
 	function apply(e: Easing, expected?: number) {
 		try {
 			session.commit(
@@ -119,7 +122,7 @@
 		><path
 			class="grid"
 			d="M20 20V140H220M20 80H220M120 20V140"
-		/>{#if start.easing.type === 'hold' && !curvePreview}<path
+		/>{#if start.easing.type === 'spring'}<path class="motion-curve" d={springPath} />{:else if start.easing.type === 'hold' && !curvePreview}<path
 				class="motion-curve"
 				d="M20 140H220V20"
 			/>{:else}<line x1="20" y1="140" x2={20 + curve.x1 * 200} y2={140 - curve.y1 * 120} /><line
@@ -161,14 +164,16 @@
 			/>{/if}</svg
 	>
 	<div class="presets">
-		{#each ['linear', 'ease-in', 'ease-out', 'ease-in-out', 'snappy', 'smooth', 'hold'] as name}<Button
+		{#each ['linear', 'ease-in', 'ease-out', 'ease-in-out', 'snappy', 'smooth', 'hold', 'spring-gentle', 'spring-snappy', 'spring-bouncy'] as name}<Button
 				variant="ghost"
 				size="xs"
 				class={preset === name ? 'preset active' : 'preset'}
 				onclick={() => apply(presets[name])}>{name.replaceAll('-', ' ')}</Button
 			>{/each}
 	</div>
-	<div class="control-values">
+	{#if start.easing.type === 'spring'}<div class="control-values spring-values">
+		{#each ['mass', 'stiffness', 'damping', 'velocity'] as key}<label>{key}<NumericInput label={`Spring ${key}`} value={start.easing[key as keyof typeof start.easing] as number} min={key === 'mass' ? 0.01 : key === 'stiffness' ? 1 : key === 'damping' ? 0 : -100} max={key === 'mass' ? 10 : key === 'stiffness' ? 2000 : key === 'damping' ? 200 : 100} step={0.1} oncommit={(v) => apply({ ...start.easing, [key]: v })} /></label>{/each}
+	</div>{:else}<div class="control-values">
 		{#each ['x1', 'y1', 'x2', 'y2'] as key}<label
 				>{key}<NumericInput
 					label={`Easing ${key}`}
@@ -179,7 +184,7 @@
 					oncommit={(v) => apply({ type: 'bezier', ...curve, [key]: v })}
 				/></label
 			>{/each}
-	</div>
+	</div>{/if}
 	<small>Changes apply to this animation segment immediately.</small>
 </section>
 
