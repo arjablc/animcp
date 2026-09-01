@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;600;700;800&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn-svelte/tailwind.css';
@@ -29,38 +28,61 @@
 
 :root {
 	font-family: 'Manrope', sans-serif;
-	color: #f2f1e8;
-	background: #10120f;
+	color: #eef4fb;
+	background: #0b1220;
 	font-synthesis: none;
 	--sans: 'Manrope', sans-serif;
 	--mono: 'DM Mono', monospace;
-	--ink: #10120f;
-	--panel: #131612;
-	--paper: #f2f1e8;
-	--muted: #92978c;
-	--line: #292d27;
-	--line-bright: #3b4038;
-	--acid: #dfff4f;
-	--coral: #ff775f;
+	--type-display: clamp(3rem, 5.5vw, 4.75rem);
+	--type-title: 1.125rem;
+	--type-body: 1rem;
+	--type-control: 0.8125rem;
+	--type-label: 0.75rem;
+	--type-meta: 0.6875rem;
+	--leading-body: 1.65;
+	--leading-compact: 1.45;
+	/* 60% midnight canvas, 30% blue working surfaces, 10% cyan signal. */
+	--ink: #0b1220;
+	--panel: #142238;
+	--panel-raised: #1b2d46;
+	--paper: #eef4fb;
+	--muted: #a7b8cd;
+	--line: #2b405a;
+	--line-bright: #496989;
+	--acid: #65dff8;
+	--acid-ink: #06202a;
+	--coral: #ff846d;
+	--warning: #f3bd68;
+	--canvas-grid: #162842;
 	--background: var(--ink);
 	--foreground: var(--paper);
 	--card: var(--panel);
 	--card-foreground: var(--paper);
-	--popover: #171a15;
+	--popover: var(--panel-raised);
 	--popover-foreground: var(--paper);
 	--primary: var(--acid);
 	--primary-foreground: var(--ink);
-	--secondary: #252a22;
+	--secondary: var(--panel-raised);
 	--secondary-foreground: var(--paper);
-	--muted-ui: #252a22;
+	--muted-ui: var(--panel-raised);
 	--muted-foreground: var(--muted);
-	--accent: #30372a;
+	--accent: #213651;
 	--accent-foreground: var(--paper);
 	--destructive: var(--coral);
 	--border: var(--line);
 	--input: var(--line-bright);
 	--ring: var(--acid);
 	--radius: 0.5rem;
+}
+
+::selection {
+	background: var(--acid);
+	color: var(--acid-ink);
+}
+
+:focus-visible {
+	outline: 2px solid var(--acid);
+	outline-offset: 3px;
 }
 
 * {
@@ -105,7 +127,7 @@ a {
 
 .projects-page {
 	min-height: 100vh;
-	background: radial-gradient(circle at 75% 10%, #262d19 0, transparent 30%), var(--ink);
+	background: radial-gradient(circle at 75% 10%, #1b304b 0, transparent 30%), var(--ink);
 }
 .projects-hero {
 	min-height: 64vh;
@@ -210,7 +232,7 @@ a {
 	place-items: center;
 	aspect-ratio: 16/10;
 	border-radius: 7px;
-	background: linear-gradient(145deg, #252b1d, #0a0b09);
+	background: linear-gradient(145deg, var(--panel-raised), var(--ink));
 	color: var(--acid);
 	font: 500 2.7rem/1 var(--mono);
 }
@@ -262,7 +284,7 @@ a {
 	gap: 22px;
 	border-bottom: 1px solid var(--line);
 	padding: 0 16px;
-	background: #10120fee;
+	background: #0b1220ee;
 	backdrop-filter: blur(14px);
 }
 .project-name {
@@ -340,10 +362,10 @@ a {
 .preview-panel {
 	display: grid;
 	grid-template-rows: minmax(0, 1fr) 35px;
-	background-color: #090a08;
+	background-color: var(--ink);
 	background-image:
-		linear-gradient(#151712 1px, transparent 1px),
-		linear-gradient(90deg, #151712 1px, transparent 1px);
+		linear-gradient(var(--canvas-grid) 1px, transparent 1px),
+		linear-gradient(90deg, var(--canvas-grid) 1px, transparent 1px);
 	background-size: 24px 24px;
 }
 .canvas-wrap {
@@ -361,8 +383,8 @@ a {
 	justify-content: space-between;
 	gap: 10px;
 	border-top: 1px solid var(--line);
-	background: #10120f;
-	color: #747a70;
+	background: var(--ink);
+	color: var(--muted);
 	padding: 0 13px;
 	font: 0.58rem/1 var(--mono);
 	letter-spacing: 0.04em;
@@ -429,7 +451,7 @@ a {
 	width: min(92vw, 520px);
 	border: 1px solid var(--line-bright);
 	border-radius: 14px;
-	background: #131612;
+	background: var(--panel);
 	color: var(--paper);
 	padding: 0;
 	box-shadow: 0 30px 100px #000c;
@@ -480,7 +502,7 @@ a {
 	min-width: 0;
 	border: 1px solid var(--line-bright);
 	border-radius: 7px;
-	background: #0e100d;
+	background: var(--ink);
 	color: var(--paper);
 	padding: 9px;
 }
@@ -501,7 +523,7 @@ a {
 	margin: 0 24px;
 	border: 1px solid var(--line);
 	border-radius: 8px;
-	background: #0e100d;
+	background: var(--ink);
 	padding: 14px;
 }
 .export-summary strong {
