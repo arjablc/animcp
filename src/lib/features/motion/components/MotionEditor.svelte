@@ -247,6 +247,13 @@
 		color: var(--paper);
 		font: var(--type-label) / var(--leading-compact) var(--sans);
 		color-scheme: dark;
+		/* Keep the operating surfaces in the landing page's blue-gray palette. */
+		--ink: #0d1522;
+		--panel: #162337;
+		--panel-raised: #1b2a3e;
+		--line: #31445a;
+		--line-bright: #496989;
+		--acid: #8fcad8;
 		--sidebar: var(--panel);
 		--sidebar-foreground: var(--paper);
 		--sidebar-border: var(--line);
@@ -254,7 +261,7 @@
 		--primary-foreground: var(--acid-ink);
 		--muted: var(--panel-raised);
 		--muted-foreground: #a7b8cd;
-		--accent: #213651;
+		--accent: #20344c;
 		--accent-foreground: var(--paper);
 		--border: var(--line);
 		--input: var(--line-bright);
@@ -286,7 +293,7 @@
 		border: 0 !important;
 		border-radius: 6px !important;
 		background: transparent;
-		color: #93a3b7 !important;
+		color: var(--muted-foreground) !important;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -298,15 +305,15 @@
 		height: 16px;
 	}
 	:global(.editor-icon:hover) {
-		background: #303a47 !important;
-		color: #e3ecd9 !important;
+		background: var(--panel-raised) !important;
+		color: var(--paper) !important;
 	}
 	:global(.editor-icon:disabled) {
 		opacity: 0.3;
 		cursor: default;
 	}
 	:global(.editor-icon.tool-active) {
-		background: #143d4b !important;
+		background: var(--accent) !important;
 		color: var(--acid) !important;
 	}
 	.center {
@@ -354,22 +361,22 @@
 	}
 	:global(.studio *) {
 		scrollbar-width: thin;
-		scrollbar-color: #465365 #181e27;
+		scrollbar-color: var(--line-bright) var(--panel);
 	}
 	:global(.studio ::-webkit-scrollbar) {
 		width: 8px;
 		height: 8px;
 	}
 	:global(.studio ::-webkit-scrollbar-track) {
-		background: #181e27;
+		background: var(--panel);
 	}
 	:global(.studio ::-webkit-scrollbar-thumb) {
-		background: #465365;
+		background: var(--line-bright);
 		border-radius: 8px;
-		border: 2px solid #181e27;
+		border: 2px solid var(--panel);
 	}
 	:global(.studio ::-webkit-scrollbar-corner) {
-		background: #181e27;
+		background: var(--panel);
 	}
 	@media (max-width: 767px) {
 		.mobile-sidebar {

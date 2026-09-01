@@ -398,7 +398,7 @@
 		box-shadow: none;
 	}
 	.name-row :global(button) {
-		color: #8493a8;
+		color: var(--muted-foreground);
 		border-radius: 4px;
 		flex-shrink: 0;
 	}
@@ -413,7 +413,7 @@
 	}
 	h3 span {
 		font-size: var(--type-meta);
-		color: #748399;
+		color: var(--muted-foreground);
 	}
 	.name-row + h3 {
 		margin-top: 17px;
@@ -438,7 +438,7 @@
 		align-items: center;
 		gap: 8px;
 		margin-top: 10px;
-		color: #8596ad;
+		color: var(--muted-foreground);
 	}
 	.font-options > :global(.property-field) {
 		min-width: 0;
@@ -457,20 +457,20 @@
 		grid-column: 1 / -1;
 	}
 	.font-options :global(button) {
-		color: #a6b5c7;
+		color: var(--muted-foreground);
 		border-radius: 4px;
 	}
 	.font-options :global(button[aria-pressed='true']) {
-		background: #143d4b;
+		background: var(--accent);
 		color: var(--acid);
 	}
 	select {
 		width: 100%;
 		font-size: var(--type-label);
-		background: #242c37;
-		border: 1px solid #343e4a;
+		background: var(--panel-raised);
+		border: 1px solid var(--line);
 		border-radius: 5px;
-		color: #c6d2e2;
+		color: var(--paper);
 		padding: 6px 8px;
 		margin-bottom: 6px;
 	}
@@ -480,17 +480,17 @@
 	.gradient-stop {
 		margin-top: 8px;
 		padding: 7px 0;
-		border-top: 1px solid #2e3845;
+		border-top: 1px solid var(--line);
 	}
 	.stop-heading {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		font-size: var(--type-meta);
-		color: #879aaf;
+		color: var(--muted-foreground);
 	}
 	.stop-heading :global(button) {
-		color: #879aaf;
+		color: var(--muted-foreground);
 		border-radius: 4px;
 	}
 	:global(.text-action) {
@@ -506,26 +506,27 @@
 	}
 	.hint {
 		font-size: var(--type-label);
-		color: #7c8da5;
+		color: var(--muted-foreground);
 		line-height: 1.7;
 		margin: 12px 0 0;
 	}
 	.nothing-selected {
 		padding: 70px 15px;
 		text-align: center;
-		color: #77889f;
+		color: var(--muted-foreground);
 	}
 	.nothing-selected :global(svg) {
 		margin: 0 auto 14px;
-		color: #64778d;
+		color: var(--muted);
 	}
 	.nothing-selected p {
 		font-size: var(--type-control);
-		color: #afbfd2;
+		color: var(--paper);
 	}
 	.nothing-selected small {
 		font-size: var(--type-label);
 		line-height: 1.8;
+		color: var(--muted-foreground);
 	}
 	@media (max-width: 1000px) {
 		.inspector {

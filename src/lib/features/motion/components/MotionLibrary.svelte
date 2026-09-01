@@ -69,12 +69,8 @@
 				rhythm. Keep control.
 			</p>
 			<div class="actions">
-				<a class="primary" href="/motion/new">＋ New composition</a><a
-					class="secondary"
-					href="/motion/demo">Fix this animation ↗</a
-				>
+				<a class="primary" href="/motion/new">＋ New composition</a>
 			</div>
-			<small>Local-first · No account · SVG & PNG · Google Fonts</small>
 		</div>
 		<div class="preview">
 			<div class="preview-label">PRODUCT CARDS <span>00:01 / 00:05</span></div>
@@ -149,7 +145,6 @@
 	}
 	.template-grid a {
 		padding: 18px 0;
-		border-bottom: 1px solid var(--line);
 	}
 	.template-grid strong {
 		font-size: 12px;
@@ -177,7 +172,6 @@
 	}
 	nav {
 		height: 92px;
-		border-bottom: 1px solid var(--line);
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
@@ -231,7 +225,6 @@
 		margin: 28px 0 22px;
 	}
 	.primary,
-	.secondary,
 	button {
 		border-radius: 6px;
 		padding: 12px 16px;
@@ -244,14 +237,9 @@
 		border-color: var(--landing-accent);
 		font-weight: 600;
 	}
-	.secondary,
 	button {
 		background: transparent;
 		color: #c7d3e0;
-	}
-	.copy > small {
-		font: 400 var(--type-meta) / 1.4 var(--mono);
-		color: var(--muted);
 	}
 	.preview {
 		background: var(--landing-panel);
@@ -306,7 +294,6 @@
 		font: 400 var(--type-meta) / 1.4 var(--mono);
 		align-items: center;
 		margin: 10px 0;
-		border-bottom: 1px solid var(--line);
 		padding-bottom: 7px;
 	}
 	.mini-timeline i {
@@ -326,7 +313,6 @@
 		color: var(--paper);
 	}
 	.projects {
-		border-top: 1px solid var(--line);
 		padding: 30px 0 65px;
 	}
 	.heading {
@@ -415,7 +401,6 @@
 		color: #ffd0ab;
 	}
 	footer {
-		border-top: 1px solid var(--line);
 		padding: 26px 0;
 		display: flex;
 		gap: 25px;
