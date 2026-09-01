@@ -68,7 +68,7 @@ const motion: Record<string, Schema> = {
 	}),
 	create_layer: obj(
 		{
-			type: en('rectangle', 'ellipse', 'text', 'svg', 'png'),
+			type: en('rectangle', 'ellipse', 'text', 'svg', 'png', 'group'),
 			name: str,
 			text: str,
 			fontFamily: str,
@@ -77,6 +77,7 @@ const motion: Record<string, Schema> = {
 		['type']
 	),
 	duplicate_layer: obj({ layerId: str }, ['layerId']),
+	group_layers: obj({ layerIds: ids, name: str }, ['layerIds']),
 	delete_layer: obj({ layerId: str }, ['layerId']),
 	set_layer: obj(
 		{
@@ -213,6 +214,8 @@ const descriptions: Record<string, string> = {
 		'Place target animation after a reference animation; default gap is one frame after its end. Preserve target duration, values and easing. Supply explicit ranges for multi-stage motion. Resolve text with find_elements first.',
 	copy_motion:
 		'Copy matching property tracks. Relative numeric copy offsets source values from sourceFrame onto target baseline at targetFrame. End anchors preserve final positions.',
+	group_layers:
+		'Create an animated group around two or more selected sibling layers. Group transforms compose with every child so group and child animations remain independently editable.',
 	retime_motion:
 		'Scale duration around start/end/center/playhead. 0.7 is 30% shorter; 30% faster is 1/1.3. Reject collisions and preserve human locks.',
 	batch_edit:

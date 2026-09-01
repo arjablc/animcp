@@ -183,6 +183,54 @@ function apply(p: Project, op: Operation): unknown {
 			p.layers.push(l);
 			return { layerId: l.id };
 		}
+		case 'group_layers': {
+			const childIds = strings(i.layerIds);
+			check(childIds.length >= 2, 'Select at least two layers to group');
+			check(new Set(childIds).size === childIds.length, 'Duplicate group child');
+			const children = childIds.map((id) => editable(p, id));
+			check(children.every((child) => child.type !== 'group'), 'Group nested groups separately');
+			const parentId = children[0].parentId;
+			check(
+				children.every((child) => child.parentId === parentId),
+				'Group only layers at the same hierarchy level'
+			);
+			const group = createLayer('group', string(i.name ?? 'Group', 200));
+			group.parentId = parentId;
+			const left = Math.min(...children.map((child) => Number(evaluate(child.tracks.positionX, 0))));
+			const top = Math.min(...children.map((child) => Number(evaluate(child.tracks.positionY, 0))));
+			const right = Math.max(
+				...children.map(
+					(child) =>
+						Number(evaluate(child.tracks.positionX, 0)) +
+						Number(evaluate(child.tracks.width, 0)) * Number(evaluate(child.tracks.scaleX, 0))
+				)
+			);
+			const bottom = Math.max(
+				...children.map(
+					(child) =>
+						Number(evaluate(child.tracks.positionY, 0)) +
+						Number(evaluate(child.tracks.height, 0)) * Number(evaluate(child.tracks.scaleY, 0))
+				)
+			);
+			group.tracks.positionX.defaultValue = left;
+			group.tracks.positionY.defaultValue = top;
+			group.tracks.width.defaultValue = Math.max(1, right - left);
+			group.tracks.height.defaultValue = Math.max(1, bottom - top);
+			const index = Math.min(...children.map((child) => p.layers.indexOf(child)));
+			p.layers.splice(index, 0, group);
+			for (const child of children) {
+				for (const [property, offset] of [
+					['positionX', left],
+					['positionY', top]
+				] as const) {
+					const motion = child.tracks[property];
+					motion.defaultValue = Number(motion.defaultValue) - offset;
+					for (const key of motion.keys) key.value = Number(key.value) - offset;
+				}
+				child.parentId = group.id;
+			}
+			return { layerId: group.id };
+		}
 		case 'import_asset': {
 			const a = i.asset as Project['assets'][number];
 			check(a, 'Missing asset');
@@ -220,7 +268,17 @@ function apply(p: Project, op: Operation): unknown {
 		}
 		case 'delete_layer': {
 			editable(p, i.layerId);
-			p.layers = p.layers.filter((l) => l.id !== i.layerId);
+			const toDelete = new Set<string>([String(i.layerId)]);
+			for (let changed = true; changed; ) {
+				changed = false;
+				for (const layer of p.layers)
+					if (layer.parentId && toDelete.has(layer.parentId) && !toDelete.has(layer.id)) {
+						toDelete.add(layer.id);
+						changed = true;
+					}
+			}
+			for (const id of toDelete) editable(p, id);
+			p.layers = p.layers.filter((l) => !toDelete.has(l.id));
 			return;
 		}
 		case 'set_layer': {

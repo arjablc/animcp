@@ -16,7 +16,9 @@ export type Paint = { type: 'solid' | 'linear' | 'radial'; stops: string[] };
 export type Layer = {
 	id: string;
 	name: string;
-	type: 'rectangle' | 'ellipse' | 'text' | 'svg' | 'png';
+	type: 'rectangle' | 'ellipse' | 'text' | 'svg' | 'png' | 'group';
+	/** A group is a normal animated layer; its transform is composed before this layer's. */
+	parentId?: string;
 	visible: boolean;
 	locked: boolean;
 	text: string;
@@ -90,14 +92,15 @@ export function createLayer(type: Layer['type'], name = type as string): Layer {
 		paint: { type: 'solid', stops: [] },
 		tracks: Object.fromEntries(
 			Object.entries({
-				positionX: 200,
-				positionY: 180,
+				// A group starts as an identity transform so grouping never moves its children.
+				positionX: type === 'group' ? 0 : 200,
+				positionY: type === 'group' ? 0 : 180,
 				scaleX: 1,
 				scaleY: 1,
 				rotation: 0,
 				opacity: 1,
-				width: type === 'text' ? 500 : 240,
-				height: type === 'text' ? 90 : 140,
+				width: type === 'text' ? 500 : type === 'group' ? 960 : 240,
+				height: type === 'text' ? 90 : type === 'group' ? 540 : 140,
 				cornerRadius: 20,
 				fill: '#dfff4f',
 				paintOpacity: 1,
@@ -323,7 +326,7 @@ export function validateProject(input: unknown): Project {
 	for (const l of p.layers) {
 		unique(l.id);
 		string(l.name, 200);
-		check(['rectangle', 'ellipse', 'text', 'svg', 'png'].includes(l.type), 'Invalid layer type');
+		check(['rectangle', 'ellipse', 'text', 'svg', 'png', 'group'].includes(l.type), 'Invalid layer type');
 		check(typeof l.visible === 'boolean' && typeof l.locked === 'boolean', 'Invalid layer flags');
 		string(l.text, 10000);
 		string(l.fontFamily, 200);
@@ -393,6 +396,21 @@ export function validateProject(input: unknown): Project {
 				validateEasing(k.easing);
 				keys++;
 			}
+		}
+	}
+	const layersById = new Map(p.layers.map((layer) => [layer.id, layer]));
+	for (const layer of p.layers) {
+		if (layer.parentId === undefined) continue;
+		string(layer.parentId, 100);
+		const parent = layersById.get(layer.parentId);
+		check(parent?.type === 'group', 'Layer parent must be a group');
+		check(parent.id !== layer.id, 'A layer cannot parent itself');
+		const ancestors = new Set<string>([layer.id]);
+		let current: Layer | undefined = parent;
+		while (current?.parentId) {
+			check(!ancestors.has(current.id), 'Group hierarchy contains a cycle');
+			ancestors.add(current.id);
+			current = layersById.get(current.parentId);
 		}
 	}
 	check(keys <= 20000, 'Project exceeds 20,000 keyframes');

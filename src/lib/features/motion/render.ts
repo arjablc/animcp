@@ -9,9 +9,79 @@ export function xml(v: unknown): string {
 }
 export const clamp = (n: number) => Math.max(0, Math.min(1, n));
 export function transform(l: Layer, frame: number) {
-	const w = Math.max(0.001, value(l, 'width', frame)),
-		h = Math.max(0.001, value(l, 'height', frame));
-	return `translate(${value(l, 'positionX', frame)} ${value(l, 'positionY', frame)}) translate(${w / 2} ${h / 2}) rotate(${value(l, 'rotation', frame)}) scale(${value(l, 'scaleX', frame)} ${value(l, 'scaleY', frame)}) translate(${-w / 2} ${-h / 2})`;
+	return transformWithValues(l, frame);
+}
+function transformWithValues(l: Layer, frame: number, values: Partial<Record<string, number>> = {}) {
+	const n = (property: string) => values[property] ?? value(l, property, frame);
+	const w = Math.max(0.001, n('width')),
+		h = Math.max(0.001, n('height'));
+	return `translate(${n('positionX')} ${n('positionY')}) translate(${w / 2} ${h / 2}) rotate(${n('rotation')}) scale(${n('scaleX')} ${n('scaleY')}) translate(${-w / 2} ${-h / 2})`;
+}
+function inheritedValue(parent: Layer, child: Layer, property: string, frame: number) {
+	const parentTrack = parent.tracks[property],
+		childTrack = child.tracks[property];
+	// A child with its own animation wins only for that animated property. The group's
+	// default remains as its layout baseline, while the group's animated delta is ignored.
+	return parentTrack.keys.length && childTrack?.keys.length
+		? Number(parentTrack.defaultValue)
+		: value(parent, property, frame);
+}
+export function ancestorTransform(p: Project, layer: Layer, frame: number) {
+	const ancestors: { parent: Layer; child: Layer }[] = [];
+	const seen = new Set<string>([layer.id]);
+	let parentId = layer.parentId;
+	let child = layer;
+	while (parentId) {
+		if (seen.has(parentId)) throw new Error('Group hierarchy contains a cycle');
+		seen.add(parentId);
+		const parent = p.layers.find((candidate) => candidate.id === parentId);
+		if (!parent) break;
+		ancestors.unshift({ parent, child });
+		child = parent;
+		parentId = parent.parentId;
+	}
+	return ancestors
+		.map(({ parent, child }) =>
+			transformWithValues(
+				parent,
+				frame,
+				Object.fromEntries(
+					['positionX', 'positionY', 'width', 'height', 'rotation', 'scaleX', 'scaleY'].map(
+						(property) => [property, inheritedValue(parent, child, property, frame)]
+					)
+				)
+			)
+		)
+		.join(' ');
+}
+export function ancestorOpacity(p: Project, layer: Layer, frame: number) {
+	const seen = new Set<string>([layer.id]);
+	let parentId = layer.parentId,
+		child = layer,
+		opacity = 1;
+	while (parentId) {
+		if (seen.has(parentId)) return 0;
+		seen.add(parentId);
+		const parent = p.layers.find((candidate) => candidate.id === parentId);
+		if (!parent) return 0;
+		opacity *= inheritedValue(parent, child, 'opacity', frame);
+		child = parent;
+		parentId = parent.parentId;
+	}
+	return clamp(opacity);
+}
+export function effectivelyVisible(p: Project, layer: Layer) {
+	if (!layer.visible) return false;
+	const seen = new Set<string>([layer.id]);
+	let parentId = layer.parentId;
+	while (parentId) {
+		if (seen.has(parentId)) return false;
+		seen.add(parentId);
+		const parent = p.layers.find((candidate) => candidate.id === parentId);
+		if (!parent || !parent.visible) return false;
+		parentId = parent.parentId;
+	}
+	return true;
 }
 export function layerSvg(p: Project, l: Layer, f: number): string {
 	const n = (key: string) => value(l, key, f),
@@ -65,8 +135,11 @@ export function layerSvg(p: Project, l: Layer, f: number): string {
 export function exportSvg(p: Project, frame: number) {
 	const c = p.composition;
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${c.width}" height="${c.height}" viewBox="0 0 ${c.width} ${c.height}"><rect width="100%" height="100%" fill="${c.background}"/>${p.layers
-		.filter((l) => l.visible)
-		.map((l) => layerSvg(p, l, frame))
+		.filter((l) => l.type !== 'group' && effectivelyVisible(p, l))
+		.map(
+			(l) =>
+				`<g transform="${ancestorTransform(p, l, frame)}" opacity="${ancestorOpacity(p, l, frame)}">${layerSvg(p, l, frame)}</g>`
+		)
 		.join('')}</svg>`;
 }
 export function download(text: string | Blob, name: string, mime = 'application/json') {
