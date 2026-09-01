@@ -16,12 +16,18 @@
 		Square,
 		Circle,
 		Image,
+		Folder,
+		FolderPlus,
+		ChevronDown,
+		ChevronRight,
+		CornerDownRight,
 		ArrowUp,
 		ArrowDown,
 		ArrowLeft,
 		Check
 	} from '@lucide/svelte';
 	import NumericInput from './NumericInput.svelte';
+	import type { Layer } from '../model';
 	import type { MotionSession } from '../session.svelte';
 	let { session, open }: { session: MotionSession; open: boolean } = $props();
 	let tab = $state('layers'),
@@ -29,6 +35,7 @@
 		target = $state<string | null>(null),
 		after = $state(false);
 	let dragRevision = 0;
+	let collapsedGroups = $state<string[]>([]);
 	let pointer: { id: string; x: number; y: number; moved: boolean } | null = null;
 	let suppressClick = false;
 	function pointerStart(e: PointerEvent, id: string, locked: boolean) {
@@ -85,7 +92,23 @@
 	}
 
 	const sidebar = Sidebar.useSidebar();
-	const rows = $derived([...session.project.layers].reverse());
+	type TreeRow = { layer: Layer; depth: number; hasChildren: boolean };
+	const rows = $derived.by(() => {
+		const childrenOf = (parentId?: string) =>
+			session.project.layers.filter((layer) => layer.parentId === parentId).reverse();
+		const visit = (parentId: string | undefined, depth: number): TreeRow[] =>
+			childrenOf(parentId).flatMap((layer) => {
+				const children = childrenOf(layer.id);
+				const row = { layer, depth, hasChildren: children.length > 0 };
+				return collapsedGroups.includes(layer.id) ? [row] : [row, ...visit(layer.id, depth + 1)];
+			});
+		return visit(undefined, 0);
+	});
+	function toggleGroup(id: string) {
+		collapsedGroups = collapsedGroups.includes(id)
+			? collapsedGroups.filter((entry) => entry !== id)
+			: [...collapsedGroups, id];
+	}
 	function safe(fn: () => unknown) {
 		try {
 			fn();
@@ -101,7 +124,7 @@
 		dragId = null;
 		target = null;
 		if (!id || !to || id === to) return;
-		const ordered = rows.map((l) => l.id).filter((l) => l !== id);
+		const ordered = rows.map((row) => row.layer.id).filter((layerId) => layerId !== id);
 		ordered.splice(ordered.indexOf(to) + (below ? 1 : 0), 0, id);
 		safe(() =>
 			session.commit(
@@ -126,6 +149,15 @@
 				'Reordered layer'
 			)
 		);
+	}
+	function groupSelected() {
+		const layerIds = session.context.selectedLayerIds;
+		if (layerIds.length < 2) return;
+		safe(() => {
+			const result = session.run('group_layers', { layerIds }, 'Grouped layers');
+			const group = result.data[0] as { layerId: string };
+			session.select([group.layerId]);
+		});
 	}
 </script>
 
@@ -158,10 +190,12 @@
 						}}><item.icon size={16} /></Tabs.Trigger
 					>{/each}</Tabs.List
 			>{#if open}<Tabs.Content value="layers" class="panel-tab-content"
-					><div class="panel-heading">Layers <span>{rows.length}</span></div>
-					<div class="layer-list">
-						{#each rows as l (l.id)}<div
-								class="layer-row"
+					><div class="panel-heading">Layers <span>{session.project.layers.length}</span></div>
+						<div class="layer-list">
+							{#each rows as row (row.layer.id)}{@const l = row.layer}<div
+									class="layer-row"
+									class:group-row={l.type === 'group'}
+									class:child-row={row.depth > 0}
 								class:active={session.context.selectedLayerIds.includes(l.id)}
 								class:drop-before={target === l.id && !after}
 								class:drop-after={target === l.id && after}
@@ -177,9 +211,21 @@
 									target = null;
 								}}
 							>
-								<GripVertical size={12} class="grip" /><button
-									class="layer-select"
-									title={`${l.name} · drag to reorder · Alt+↑/↓ to move`}
+									<div class="tree-gutter" style:width={`${row.depth * 14}px`} aria-hidden="true">
+										{#if row.depth > 0}<CornerDownRight size={13} />{/if}
+									</div>{#if l.type === 'group'}<button
+										class="group-toggle"
+										aria-label={`${collapsedGroups.includes(l.id) ? 'Expand' : 'Collapse'} ${l.name}`}
+										title={collapsedGroups.includes(l.id) ? 'Expand group' : 'Collapse group'}
+										disabled={!row.hasChildren}
+										onclick={(event) => {
+											event.stopPropagation();
+											toggleGroup(l.id);
+										}}>{#if collapsedGroups.includes(l.id)}<ChevronRight size={13} />{:else}<ChevronDown
+											size={13}
+											/>{/if}</button>{:else}<span class="group-toggle-spacer"></span>{/if}<GripVertical size={12} class="grip" /><button
+										class="layer-select"
+										title={`${l.name} · drag to reorder · Alt+↑/↓ to move`}
 									onclick={(e) => selectLayer(e, l.id)}
 									onkeydown={(e) => {
 										if (e.altKey && ['ArrowUp', 'ArrowDown'].includes(e.key)) {
@@ -187,7 +233,7 @@
 											nudge(l.id, e.key === 'ArrowUp' ? 1 : -1);
 										}
 									}}
-									>{#if l.type === 'text'}<Type size={14} />{:else if l.type === 'rectangle'}<Square
+									>{#if l.type === 'group'}<Folder size={14} />{:else if l.type === 'text'}<Type size={14} />{:else if l.type === 'rectangle'}<Square
 											size={14}
 										/>{:else if l.type === 'ellipse'}<Circle size={14} />{:else}<Image
 											size={14}
@@ -222,7 +268,13 @@
 					{#if !rows.length}<p class="hint">
 							Add a shape, text, or import artwork to get started.
 						</p>{:else}<div class="layer-footer">
-							<span>Drag layers to reorder</span><Button
+								<Button
+									variant="ghost"
+									size="sm"
+									class="group-action"
+									disabled={session.context.selectedLayerIds.length < 2}
+									onclick={groupSelected}><FolderPlus size={13} /> Group</Button
+								><span>Drag to reorder</span><Button
 								variant="ghost"
 								size="icon-xs"
 								aria-label="Raise layer"
@@ -391,6 +443,46 @@
 		background: var(--accent);
 		border-color: var(--line-bright);
 	}
+	.layer-row.group-row {
+		background: color-mix(in srgb, var(--panel-raised) 70%, transparent);
+	}
+	.layer-row.group-row.active {
+		background: var(--accent);
+	}
+	.tree-gutter {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		height: 100%;
+		color: #66829d;
+		flex-shrink: 0;
+	}
+	.group-toggle,
+	.group-toggle-spacer {
+		width: 16px;
+		height: 24px;
+		flex-shrink: 0;
+	}
+	.group-toggle {
+		display: grid;
+		place-items: center;
+		padding: 0;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		color: var(--muted-foreground);
+		cursor: pointer;
+	}
+	.group-toggle:hover:not(:disabled),
+	.group-toggle:focus-visible {
+		background: var(--accent);
+		color: var(--paper);
+		outline: none;
+	}
+	.group-toggle:disabled {
+		opacity: 0.35;
+		cursor: default;
+	}
 	.layer-row.drop-before:before,
 	.layer-row.drop-after:after {
 		content: '';
@@ -455,6 +547,10 @@
 	.layer-footer > span {
 		flex: 1;
 		font-size: var(--type-meta);
+	}
+	.layer-footer :global(.group-action) {
+		gap: 5px;
+		color: var(--acid);
 	}
 	.layer-footer :global(button) {
 		border-radius: 4px;

@@ -10,7 +10,8 @@
 		ZoomIn,
 		ZoomOut,
 		Repeat2,
-		Film
+		Film,
+		CornerDownRight
 	} from '@lucide/svelte';
 	import type { MotionSession } from '../session.svelte';
 	import type { Layer, Key } from '../model';
@@ -21,6 +22,14 @@
 		scroller = $state<HTMLDivElement>() as HTMLDivElement,
 		content = $state<HTMLDivElement>() as HTMLDivElement;
 	let scrub = $state(false),
+		barSelection = $state<{
+			startX: number;
+			startY: number;
+			endX: number;
+			endY: number;
+			additive: boolean;
+		} | null>(null),
+		tracks = $state<HTMLDivElement>() as HTMLDivElement,
 		drag = $state<{
 			x: number;
 			ids: string[];
@@ -33,6 +42,20 @@
 			property: string;
 		} | null>(null);
 	const labelWidth = 190;
+	type TimelineRow = { layer: Layer; depth: number; childCount: number };
+	const timelineRows = $derived.by(() => {
+		const childrenOf = (parentId?: string) =>
+			session.project.layers.filter((layer) => layer.parentId === parentId).reverse();
+		const visit = (parentId: string | undefined, depth: number): TimelineRow[] =>
+			childrenOf(parentId).flatMap((layer) => {
+				const children = childrenOf(layer.id);
+				return [
+					{ layer, depth, childCount: children.length },
+					...(collapsed.includes(layer.id) ? [] : visit(layer.id, depth + 1))
+				];
+			});
+		return visit(undefined, 0);
+	});
 	const duration = $derived(session.project.composition.durationFrames);
 	const trackWidth = $derived(duration * zoom + 80);
 	const tickStep = $derived(zoom < 4 ? 30 : zoom < 8 ? 15 : 10);
@@ -52,6 +75,11 @@
 	}
 	function move(e: PointerEvent) {
 		if (scrub) seek(e);
+		if (barSelection) {
+			const rect = tracks.getBoundingClientRect();
+			barSelection = { ...barSelection, endX: e.clientX - rect.left, endY: e.clientY - rect.top };
+			return;
+		}
 		if (drag) {
 			const raw = Math.round((e.clientX - drag.x) / zoom),
 				min = drag.min,
@@ -59,8 +87,58 @@
 			drag = { ...drag, delta: Math.max(min, Math.min(max, raw)) };
 		}
 	}
+	function startBarSelection(e: PointerEvent) {
+		if (e.button !== 0 || !(e.target instanceof Element) || e.target.closest('button')) return;
+		e.preventDefault();
+		session.playing = false;
+		const rect = tracks.getBoundingClientRect();
+		barSelection = {
+			startX: e.clientX - rect.left,
+			startY: e.clientY - rect.top,
+			endX: e.clientX - rect.left,
+			endY: e.clientY - rect.top,
+			additive: e.shiftKey
+		};
+		tracks.setPointerCapture(e.pointerId);
+	}
+	function overlaps(a: DOMRect, b: { left: number; top: number; right: number; bottom: number }) {
+		return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+	}
 	function finish() {
 		scrub = false;
+		const selection = barSelection;
+		barSelection = null;
+		if (selection) {
+			const trackRect = tracks.getBoundingClientRect();
+			const rect = {
+				left: trackRect.left + Math.min(selection.startX, selection.endX),
+				top: trackRect.top + Math.min(selection.startY, selection.endY),
+				right: trackRect.left + Math.max(selection.startX, selection.endX),
+				bottom: trackRect.top + Math.max(selection.startY, selection.endY)
+			};
+			if (rect.right - rect.left < 3 && rect.bottom - rect.top < 3) {
+				if (!selection.additive) session.select([]);
+				return;
+			}
+			const bars = [...tracks.querySelectorAll<HTMLElement>('.animation-segment')].filter((bar) =>
+				overlaps(bar.getBoundingClientRect(), rect)
+			);
+			const keyframeIds = bars.flatMap((bar) => bar.dataset.keyIds?.split(',') ?? []);
+			const layerIds = bars.map((bar) => bar.dataset.layerId!).filter(Boolean);
+			const properties = bars.map((bar) => bar.dataset.property!).filter(Boolean);
+			session.select(
+				selection.additive
+					? [...new Set([...session.context.selectedLayerIds, ...layerIds])]
+					: [...new Set(layerIds)],
+				selection.additive
+					? [...new Set([...session.context.selectedKeyframeIds, ...keyframeIds])]
+					: [...new Set(keyframeIds)],
+				selection.additive
+					? [...new Set([...session.context.selectedProperties, ...properties])]
+					: [...new Set(properties)]
+			);
+			return;
+		}
 		const d = drag;
 		drag = null;
 		if (d?.delta) {
@@ -149,6 +227,7 @@
 	onpointerup={finish}
 	onpointercancel={() => {
 		scrub = false;
+		barSelection = null;
 		drag = null;
 	}}
 />
@@ -252,16 +331,23 @@
 					></span>
 				</div>
 			</div>
-			<div class="tracks" style:min-height="150px">
+			<div
+				class="tracks"
+				bind:this={tracks}
+				style:min-height="150px"
+				role="group"
+				aria-label="Animation tracks"
+				onpointerdown={startBarSelection}
+			>
 				<div
 					class="grid-lines"
 					style:left={`${labelWidth}px`}
 					style:background-size={`${tickStep * zoom}px 100%`}
 				></div>
-				{#each [...session.project.layers].reverse() as l (l.id)}{@const animated = Object.entries(
+				{#each timelineRows as row (row.layer.id)}{@const l = row.layer}{@const animated = Object.entries(
 						l.tracks
 					).filter(([, t]) => t.keys.length)}
-					<div class="layer-track">
+					<div class="layer-track" class:group-track={l.type === 'group'}>
 						<div
 							class="sticky-label layer-track-label"
 							class:selected={session.context.selectedLayerIds.includes(l.id)}
@@ -269,12 +355,17 @@
 							<button
 								class="expand-track"
 								aria-label={`${collapsed.includes(l.id) ? 'Expand' : 'Collapse'} ${l.name} animation`}
-								disabled={!animated.length}
+								disabled={!animated.length && !row.childCount}
 								onclick={() => toggle(l.id)}
 								>{#if collapsed.includes(l.id)}<ChevronRight size={12} />{:else}<ChevronDown
 										size={12}
 									/>{/if}</button
-							><button class="track-name" onclick={() => session.select([l.id])}>{l.name}</button
+							><span class="timeline-tree-gutter" style:width={`${row.depth * 13}px`} aria-hidden="true"
+								>{#if row.depth > 0}<CornerDownRight size={11} />{/if}</span
+							><button
+								class="track-name"
+								class:group-name={l.type === 'group'}
+								onclick={() => session.select([l.id])}>{l.name}</button
 							><span class="track-count">{animated.length || ''}</span>
 						</div>
 						<button
@@ -282,9 +373,11 @@
 							aria-label={`Select ${l.name} track`}
 							onclick={() => session.select([l.id])}
 							style:width={`${trackWidth}px`}
-							>{#if !animated.length}<span>Add keyframes or enable Auto-key to animate</span
-								>{:else if collapsed.includes(l.id)}<span
-									>{animated.length} animated {animated.length === 1
+								>{#if !animated.length}{#if row.childCount}<span
+										>{row.childCount} {row.childCount === 1 ? 'layer' : 'layers'}</span
+									>{:else}<span>Add keyframes or enable Auto-key to animate</span>{/if}
+									>{:else if collapsed.includes(l.id)}<span
+										>{row.childCount ? `${row.childCount} ${row.childCount === 1 ? 'layer' : 'layers'} · ` : ''}{animated.length} animated {animated.length === 1
 										? 'property'
 										: 'properties'}</span
 								>{/if}</button
@@ -297,6 +390,7 @@
 									class="sticky-label property-label"
 									class:selected={session.context.selectedLayerIds.includes(l.id) &&
 										session.context.selectedProperties.includes(property)}
+									style:padding-left={`${31 + row.depth * 13}px`}
 									title={property}
 									onclick={() => session.select([l.id], [], [property])}
 									><span class="property-dot"></span><span
@@ -313,6 +407,9 @@
 											class="animation-segment"
 											class:active
 											class:locked={l.locked}
+											data-layer-id={l.id}
+											data-property={property}
+											data-key-ids={`${segment.start.id},${segment.end.id}`}
 											style:left={`${frame(segment.start) * zoom}px`}
 											style:width={`${Math.max(6, (frame(segment.end) - frame(segment.start)) * zoom)}px`}
 										>
@@ -353,6 +450,7 @@
 												></button>{/if}
 										</div>{/each}{#if track.keys.length === 1}{@const k = track.keys[0]}<button
 											class="single-key"
+											class:active={session.context.selectedKeyframeIds.includes(k.id)}
 											disabled={l.locked}
 											style:left={`${frame(k) * zoom}px`}
 											aria-label={`${l.name} ${property} key at ${k.frame}`}
@@ -368,6 +466,13 @@
 					>
 						Your animation starts here. Add a layer from the toolbar.
 					</p>{/if}
+				{#if barSelection}<div
+					class="bar-selection"
+					style:left={`${Math.min(barSelection.startX, barSelection.endX)}px`}
+					style:top={`${Math.min(barSelection.startY, barSelection.endY)}px`}
+					style:width={`${Math.abs(barSelection.endX - barSelection.startX)}px`}
+					style:height={`${Math.abs(barSelection.endY - barSelection.startY)}px`}
+				></div>{/if}
 				<div
 					class="playhead-line"
 					style:left={`${labelWidth + session.context.currentFrame * zoom}px`}
@@ -384,9 +489,9 @@
 	</div>
 	<div class="timeline-footer">
 		<span
-			>{session.context.selectedKeyframeIds.length === 2
+			>{session.context.selectedKeyframeIds.length > 1
 				? 'Drag animation to move · drag edges to trim · easing in Properties'
-				: 'Drag the ruler to scrub · Shift + scroll to pan horizontally'}</span
+				: 'Drag across bars to select · Shift adds bars · Shift + scroll pans horizontally'}</span
 		><span>{session.autoKey ? 'Auto-key on · edits create animation' : 'Auto-key off'}</span>
 	</div>
 </section>
@@ -587,6 +692,20 @@
 	.layer-track-label.selected {
 		background: #173b4a;
 	}
+	.group-track .layer-track-label,
+	.group-track .layer-lane {
+		background-color: #213042;
+	}
+	.group-track .layer-track-label {
+		box-shadow: inset 2px 0 0 #7194ae;
+	}
+	.timeline-tree-gutter {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		color: #66829d;
+		flex-shrink: 0;
+	}
 	.expand-track,
 	.track-name {
 		border: 0;
@@ -594,6 +713,10 @@
 		color: #a9b9cb;
 		padding: 0;
 		cursor: pointer;
+	}
+	.track-name.group-name {
+		font-weight: 600;
+		color: #d1e2ef;
 	}
 	.expand-track {
 		width: 15px;
@@ -682,6 +805,14 @@
 		border-color: var(--acid);
 		box-shadow: 0 0 0 1px #65dff81f;
 	}
+	.bar-selection {
+		position: absolute;
+		z-index: 4;
+		box-sizing: border-box;
+		border: 1px solid var(--acid);
+		background: #8fcad820;
+		pointer-events: none;
+	}
 	.bar-body {
 		display: flex;
 		align-items: center;
@@ -748,6 +879,11 @@
 		padding: 0;
 		cursor: grab;
 		touch-action: none;
+	}
+	.single-key.active {
+		background: #143d4b;
+		border-color: var(--acid);
+		box-shadow: 0 0 0 1px #65dff81f;
 	}
 	.locked {
 		opacity: 0.45;

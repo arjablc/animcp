@@ -109,6 +109,15 @@
 			session!.select([created.layerId]);
 		});
 	}
+	function groupSelected() {
+		const layerIds = session?.context.selectedLayerIds ?? [];
+		if (layerIds.length < 2) return;
+		safe(() => {
+			const result = session!.run('group_layers', { layerIds }, 'Grouped layers');
+			const group = result.data[0] as { layerId: string };
+			session!.select([group.layerId]);
+		});
+	}
 	async function imported(files: FileList | null) {
 		if (!files || !session) return;
 		busy = true;
@@ -145,6 +154,9 @@
 		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
 			e.preventDefault();
 			safe(() => (e.shiftKey ? session!.redo() : session!.undo()));
+		} else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
+			e.preventDefault();
+			groupSelected();
 		} else if (e.code === 'Space') {
 			e.preventDefault();
 			session.playing = !session.playing;
@@ -200,6 +212,7 @@
 					session={s}
 					{busy}
 					onCreate={create}
+					onGroup={groupSelected}
 					onImport={() => picker.click()}
 					onExport={(format) => void exportFile(format)}
 					onUndo={() => safe(() => s.undo())}

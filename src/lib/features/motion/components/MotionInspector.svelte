@@ -45,6 +45,13 @@
 				)
 			: undefined
 	);
+	const selectedKeyLayers = $derived(
+		session.project.layers.filter((candidate) =>
+			Object.values(candidate.tracks).some((track) =>
+				track.keys.some((key) => session.context.selectedKeyframeIds.includes(key.id))
+			)
+		)
+	);
 	function safe(fn: () => unknown) {
 		try {
 			fn();
@@ -57,21 +64,23 @@
 		if (layer) safe(() => session.run('set_layer', { layerId: layer.id, changes }));
 	}
 	function deleteSelectedKeyframes() {
-		if (!layer || !session.context.selectedKeyframeIds.length || !property) return;
-		const keys = layer.tracks[property]?.keys.filter((k) =>
-			session.context.selectedKeyframeIds.includes(k.id)
-		);
-		if (!keys?.length) return;
+		const keyframeIds = session.context.selectedKeyframeIds;
+		if (!keyframeIds.length) return;
 		safe(() => {
-			session.commit(
-				keys.map((k) => ({
-					name: 'delete_keyframe' as const,
-					input: { layerId: layer!.id, property, frame: k.frame }
-				})),
-				'Deleted keyframe'
-			);
-			session.select([layer!.id], [], [property]);
+			session.run('delete_keyframes', { keyframeIds }, 'Deleted selected keyframes');
+			session.select(session.context.selectedLayerIds, [], session.context.selectedProperties);
 		});
+	}
+	function applySelectedEasing(preset: string) {
+		const keyframeIds = session.context.selectedKeyframeIds;
+		if (!keyframeIds.length || !selectedKeyLayers.length) return;
+		safe(() =>
+			session.run(
+				'set_easing',
+				{ layerIds: selectedKeyLayers.map((candidate) => candidate.id), keyframeIds, preset },
+				'Changed selected animation easing'
+			)
+		);
 	}
 	function entrance() {
 		if (!layer) return;
@@ -235,7 +244,7 @@
 								><option value="right">Align right</option>
 							</select>
 						</div>
-					</section>{/if}{#if l.type !== 'png' && l.type !== 'svg'}<section>
+					</section>{/if}{#if l.type !== 'png' && l.type !== 'svg' && l.type !== 'group'}<section>
 						<h3>Fill & stroke</h3>
 						<select
 							aria-label="Paint type"
@@ -312,13 +321,32 @@
 							variant="ghost"
 							size="sm"
 							class="text-action danger"
-							disabled={l.locked}
+							disabled={selectedKeyLayers.some((candidate) => candidate.locked)}
 							onclick={deleteSelectedKeyframes}
 							><Trash2 size={12} /> Delete selected keyframe{session.context.selectedKeyframeIds
 								.length === 1
 								? ''
 								: 's'}</Button
 						>{/if}
+					{#if session.context.selectedKeyframeIds.length > 1}<div class="bulk-easing">
+							<span>{session.context.selectedKeyframeIds.length} selected keyframes</span>
+							<div><Button
+									variant="ghost"
+									size="xs"
+									disabled={selectedKeyLayers.some((candidate) => candidate.locked)}
+									onclick={() => applySelectedEasing('linear')}>Linear</Button
+								><Button
+									variant="ghost"
+									size="xs"
+									disabled={selectedKeyLayers.some((candidate) => candidate.locked)}
+									onclick={() => applySelectedEasing('smooth')}>Smooth</Button
+								><Button
+									variant="ghost"
+									size="xs"
+									disabled={selectedKeyLayers.some((candidate) => candidate.locked)}
+									onclick={() => applySelectedEasing('snappy')}>Snappy</Button
+								></div>
+						</div>{/if}
 					<Button
 						variant="ghost"
 						size="sm"
@@ -381,6 +409,22 @@
 	.inspector section {
 		padding: 14px;
 		border-bottom: 1px solid var(--line);
+	}
+	.bulk-easing {
+		margin: 10px 0;
+		padding: 9px;
+		border-radius: 6px;
+		background: var(--accent);
+		color: var(--muted-foreground);
+		font-size: var(--type-meta);
+	}
+	.bulk-easing > div {
+		display: flex;
+		gap: 3px;
+		margin-top: 6px;
+	}
+	.bulk-easing :global(button) {
+		padding-inline: 7px;
 	}
 	.name-row {
 		display: flex;

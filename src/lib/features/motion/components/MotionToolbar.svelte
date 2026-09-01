@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Move, Square, Circle, Type, Import, Undo2, Redo2, Bot, Download } from '@lucide/svelte';
+	import { Move, Square, Circle, Type, Import, Undo2, Redo2, Bot, Download, FolderPlus } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Popover from '$lib/components/ui/popover';
 	import type { Layer } from '../model';
@@ -12,6 +12,7 @@
 		session,
 		busy,
 		onCreate,
+		onGroup,
 		onImport,
 		onExport,
 		onUndo,
@@ -20,6 +21,7 @@
 		session: MotionSession;
 		busy: boolean;
 		onCreate: (type: Layer['type']) => void;
+		onGroup: () => void;
 		onImport: () => void;
 		onExport: (format: ExportFormat) => void;
 		onUndo: () => void;
@@ -62,6 +64,15 @@
 		aria-label="Text"
 		title="Text"
 		onclick={() => onCreate('text')}><Type /></Button
+	>
+	<Button
+		variant="ghost"
+		size="icon-sm"
+		class="editor-icon"
+		aria-label="Group selected layers"
+		title="Group selected layers"
+		disabled={session.context.selectedLayerIds.length < 2}
+		onclick={onGroup}><FolderPlus /></Button
 	>
 	<Button
 		variant="ghost"

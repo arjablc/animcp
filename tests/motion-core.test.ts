@@ -12,7 +12,7 @@ import {
 	type Project
 } from '../src/lib/features/motion/model';
 import { transact, findElements } from '../src/lib/features/motion/commands';
-import { exportSvg } from '../src/lib/features/motion/render';
+import { ancestorOpacity, ancestorTransform, effectivelyVisible, exportSvg } from '../src/lib/features/motion/render';
 const key = (frame: number, value: number, easing = presets.linear): Key => ({
 	id: uid(),
 	frame,
@@ -177,5 +177,73 @@ describe('surgical transactions', () => {
 			referenceLayerId: p.layers[0].id
 		});
 		expect(n.layers[0]).toEqual(p.layers[0]);
+	});
+});
+
+describe('layer groups', () => {
+	it('composes a group transform without replacing independently animated child tracks', () => {
+		const p = createProject();
+		const first = createLayer('rectangle', 'First');
+		const second = createLayer('text', 'Second');
+		first.tracks.positionX.keys = [key(0, 100), key(20, 220)];
+		p.layers.push(first, second);
+		const grouped = transact(p, [
+			{ name: 'group_layers', input: { layerIds: [first.id, second.id], name: 'Intro' } }
+		]).project;
+		const group = grouped.layers.find((layer) => layer.type === 'group')!;
+		const child = grouped.layers.find((layer) => layer.id === first.id)!;
+		expect(group.name).toBe('Intro');
+		expect(child.parentId).toBe(group.id);
+		expect(child.tracks.positionX.keys.map((entry) => entry.frame)).toEqual([0, 20]);
+		const animated = run(grouped, 'set_property', {
+			layerId: group.id,
+			property: 'positionY',
+			frame: 10,
+			value: 60
+		});
+		const nextGroup = animated.layers.find((layer) => layer.id === group.id)!;
+		const nextChild = animated.layers.find((layer) => layer.id === first.id)!;
+		expect(nextChild.tracks.positionX.keys.map((entry) => entry.frame)).toEqual([0, 20]);
+		expect(ancestorTransform(animated, nextChild, 10)).toContain('translate(100 60)');
+		expect(exportSvg(animated, 10)).toContain('translate(100 60)');
+		const childOwnMotion = run(animated, 'set_property', {
+			layerId: child.id,
+			property: 'positionY',
+			frame: 30,
+			value: 120
+		});
+		const groupOwnMotion = run(childOwnMotion, 'set_property', {
+			layerId: group.id,
+			property: 'positionY',
+			frame: 30,
+			value: 300
+		});
+		const conflictedChild = groupOwnMotion.layers.find((layer) => layer.id === child.id)!;
+		expect(ancestorTransform(groupOwnMotion, conflictedChild, 30)).toContain('translate(100 180)');
+		const childOpacity = run(groupOwnMotion, 'set_property', {
+			layerId: child.id,
+			property: 'opacity',
+			frame: 30,
+			value: 0.8
+		});
+		const groupOpacity = run(childOpacity, 'set_property', {
+			layerId: group.id,
+			property: 'opacity',
+			frame: 30,
+			value: 0.2
+		});
+		expect(ancestorOpacity(groupOpacity, groupOpacity.layers.find((layer) => layer.id === child.id)!, 30)).toBe(1);
+	});
+	it('honors group visibility and prevents invalid parent hierarchies', () => {
+		const p = createProject();
+		const child = createLayer('rectangle');
+		const group = createLayer('group');
+		child.parentId = group.id;
+		group.visible = false;
+		p.layers.push(group, child);
+		expect(effectivelyVisible(p, child)).toBe(false);
+		expect(exportSvg(p, 0)).not.toContain('<rect width="240"');
+		child.parentId = child.id;
+		expect(() => validateProject(p)).toThrow(/parent|itself/);
 	});
 });

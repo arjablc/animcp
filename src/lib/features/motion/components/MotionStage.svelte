@@ -2,7 +2,7 @@
 	import { value, type Layer, type Value } from '../model';
 	import type { MotionSession } from '../session.svelte';
 	import { propertyEdits, previewLayer as sessionPreviewLayer } from '../editing';
-	import { layerSvg, transform } from '../render';
+	import { ancestorOpacity, ancestorTransform, effectivelyVisible, layerSvg, transform } from '../render';
 	import GradientHandles from './GradientHandles.svelte';
 
 	let { session, onImport }: { session: MotionSession; onImport: (files: FileList) => void } =
@@ -355,6 +355,61 @@
 		return { x, y, width, height };
 	}
 
+	function visualBounds(layer: Layer, frame: number) {
+		const x = value(layer, 'positionX', frame),
+			y = value(layer, 'positionY', frame),
+			width = Math.max(0.001, value(layer, 'width', frame)),
+			height = Math.max(0.001, value(layer, 'height', frame)),
+			scaleX = value(layer, 'scaleX', frame),
+			scaleY = value(layer, 'scaleY', frame),
+			rotation = (value(layer, 'rotation', frame) * Math.PI) / 180,
+			center = { x: x + width / 2, y: y + height / 2 };
+		const corners = [
+			{ x, y },
+			{ x: x + width, y },
+			{ x: x + width, y: y + height },
+			{ x, y: y + height }
+		].map((corner) => {
+			const dx = (corner.x - center.x) * scaleX,
+				dy = (corner.y - center.y) * scaleY;
+			return {
+				x: center.x + dx * Math.cos(rotation) - dy * Math.sin(rotation),
+				y: center.y + dx * Math.sin(rotation) + dy * Math.cos(rotation)
+			};
+		});
+		const left = Math.min(...corners.map((corner) => corner.x)),
+			top = Math.min(...corners.map((corner) => corner.y)),
+			right = Math.max(...corners.map((corner) => corner.x)),
+			bottom = Math.max(...corners.map((corner) => corner.y));
+		return { x: left, y: top, width: right - left, height: bottom - top };
+	}
+
+	function selectionBounds(layer: Layer, frame: number) {
+		if (layer.type !== 'group')
+			return {
+				x: 0,
+				y: 0,
+				width: Math.max(0.001, value(layer, 'width', frame)),
+				height: Math.max(0.001, value(layer, 'height', frame))
+			};
+		const children = session.project.layers.filter(
+			(child) => child.parentId === layer.id && child.visible
+		);
+		if (!children.length)
+			return {
+				x: 0,
+				y: 0,
+				width: Math.max(0.001, value(layer, 'width', frame)),
+				height: Math.max(0.001, value(layer, 'height', frame))
+			};
+		const childBounds = children.map((child) => visualBounds(child, frame));
+		const left = Math.min(...childBounds.map((child) => child.x)),
+			top = Math.min(...childBounds.map((child) => child.y)),
+			right = Math.max(...childBounds.map((child) => child.x + child.width)),
+			bottom = Math.max(...childBounds.map((child) => child.y + child.height));
+		return { x: left, y: top, width: right - left, height: bottom - top };
+	}
+
 	function intersects(a: ReturnType<typeof bounds>, b: ReturnType<typeof bounds>) {
 		return (
 			a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
@@ -498,7 +553,7 @@
 		oncontextmenu={(event) => event.preventDefault()}
 	>
 		<title>Motion composition</title>
-		{#each session.project.layers.filter((layer) => layer.visible) as raw (raw.id)}
+		{#each session.project.layers.filter((layer) => layer.type !== 'group' && effectivelyVisible(session.project, layer)) as raw (raw.id)}
 			{@const layer = displayLayer(raw)}
 			<g
 				role="button"
@@ -508,31 +563,51 @@
 				onkeydown={(event) => {
 					if (event.key === 'Enter') session.select([layer.id]);
 				}}
-				transform={dragOffset(layer.id) ? `translate(${dragging!.dx} ${dragging!.dy})` : undefined}
+				transform={ancestorTransform(session.project, raw, session.context.currentFrame)}
+				opacity={ancestorOpacity(session.project, raw, session.context.currentFrame)}
 			>
-				<!-- layerSvg renders escaped, validated project data rather than user-provided HTML. -->
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-				{@html layerSvg(session.project, layer, session.context.currentFrame)}
+				<g transform={dragOffset(layer.id) ? `translate(${dragging!.dx} ${dragging!.dy})` : undefined}>
+					<!-- layerSvg renders escaped, validated project data rather than user-provided HTML. -->
+					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+					{@html layerSvg(session.project, layer, session.context.currentFrame)}
+				</g>
 			</g>
 		{/each}
-		{#if selected && !selected.locked && selected.visible}{@const layer = displayLayer(selected)}
+		{#if selected && !selected.locked && effectivelyVisible(session.project, selected)}{@const layer = displayLayer(selected)}
 			{@const frame = session.context.currentFrame}
-			{@const width = Math.max(0.001, value(layer, 'width', frame))}
-			{@const height = Math.max(0.001, value(layer, 'height', frame))}
-			<g class="selection-controls" transform={transform(layer, frame)}>
-				<rect class="selection-box" {width} {height} />
-				<line x1={width / 2} y1="0" x2={width / 2} y2={-controlOffset} />
+			{@const box = selectionBounds(layer, frame)}
+			<g class="selection-controls" transform={ancestorTransform(session.project, selected, frame)}>
+			<g transform={transform(layer, frame)}>
+				<rect class="selection-box" x={box.x} y={box.y} width={box.width} height={box.height} />
+				{#if layer.type === 'group'}<rect
+					class="group-hit-area"
+					x={box.x}
+					y={box.y}
+					width={box.width}
+					height={box.height}
+					role="button"
+					tabindex="-1"
+					aria-label={`Move ${layer.name} group`}
+					onpointerdown={(event) => startDrag(event, selected)}
+				/>
+				<text class="group-label" x={box.x + 7} y={box.y - 8}>Group</text>
+				{:else}<line
+					x1={box.x + box.width / 2}
+					y1={box.y}
+					x2={box.x + box.width / 2}
+					y2={box.y - controlOffset}
+				/>
 				<circle
 					class="rotation-handle"
 					role="button"
 					aria-label="Rotate selected layer"
 					tabindex="-1"
-					cx={width / 2}
-					cy={-controlOffset}
+					cx={box.x + box.width / 2}
+					cy={box.y - controlOffset}
 					r={controlSize}
 					onpointerdown={(event) => startTransform(event, selected, 'rotate')}
 				/>
-				{#each [{ handle: 'nw' as TransformHandle, x: 0, y: 0 }, { handle: 'n' as TransformHandle, x: width / 2, y: 0 }, { handle: 'ne' as TransformHandle, x: width, y: 0 }, { handle: 'e' as TransformHandle, x: width, y: height / 2 }, { handle: 'se' as TransformHandle, x: width, y: height }, { handle: 's' as TransformHandle, x: width / 2, y: height }, { handle: 'sw' as TransformHandle, x: 0, y: height }, { handle: 'w' as TransformHandle, x: 0, y: height / 2 }] as control}
+				{#each [{ handle: 'nw' as TransformHandle, x: box.x, y: box.y }, { handle: 'n' as TransformHandle, x: box.x + box.width / 2, y: box.y }, { handle: 'ne' as TransformHandle, x: box.x + box.width, y: box.y }, { handle: 'e' as TransformHandle, x: box.x + box.width, y: box.y + box.height / 2 }, { handle: 'se' as TransformHandle, x: box.x + box.width, y: box.y + box.height }, { handle: 's' as TransformHandle, x: box.x + box.width / 2, y: box.y + box.height }, { handle: 'sw' as TransformHandle, x: box.x, y: box.y + box.height }, { handle: 'w' as TransformHandle, x: box.x, y: box.y + box.height / 2 }] as control}
 					<rect
 						class:corner={control.handle.length === 2}
 						class="resize-handle"
@@ -546,9 +621,11 @@
 						onpointerdown={(event) => startTransform(event, selected, control.handle)}
 					/>
 				{/each}
+				{/if}
+			</g>
 			</g>
 		{/if}
-		{#each session.project.layers.filter((layer) => layer.visible) as layer (layer.id)}
+		{#each session.project.layers.filter((layer) => layer.type !== 'group' && effectivelyVisible(session.project, layer)) as layer (layer.id)}
 			{@const frame = guideFrame(layer)}
 			{#if frame !== null}{@const guide = bounds(layer, frame)}
 				<g class="motion-guide" pointer-events="none" aria-hidden="true">
@@ -624,6 +701,20 @@
 		stroke-width: 1;
 		stroke-dasharray: 4 2;
 		vector-effect: non-scaling-stroke;
+	}
+	.group-hit-area {
+		pointer-events: all;
+		fill: transparent;
+		cursor: move;
+	}
+	.group-label {
+		fill: #cfeaa9;
+		font: 600 12px/1 var(--sans);
+		letter-spacing: 0.02em;
+		paint-order: stroke;
+		stroke: var(--ink);
+		stroke-width: 3px;
+		pointer-events: none;
 	}
 	.selection-controls line {
 		stroke: #cfeaa9;

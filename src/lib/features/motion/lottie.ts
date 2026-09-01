@@ -1,5 +1,5 @@
 import { check, evaluate, type Layer, type Project } from './model';
-import { clamp } from './render';
+import { clamp, effectivelyVisible } from './render';
 import { rasterizeContent } from './rasterize';
 import { loadProjectFonts } from './fonts';
 // Frame-sampled export is explicit: integer-frame playback matches the editor evaluator.
@@ -19,8 +19,9 @@ export async function exportLottie(p: Project) {
 	const rgb = (v: unknown) => [1, 3, 5].map((i) => parseInt(String(v).slice(i, i + 2), 16) / 255);
 	const assets: Record<string, unknown>[] = [];
 	const layers: Record<string, unknown>[] = [];
+	const lottieIndices = new Map(p.layers.map((layer, index) => [layer.id, index + 1]));
 	for (const [index, l] of p.layers.entries()) {
-		if (!l.visible) continue;
+		if (!effectivelyVisible(p, l)) continue;
 		const n = (prop: string, f = 0) => Number(evaluate(l.tracks[prop], f));
 		const transform = {
 			o: scalar(l, 'opacity', 100),
@@ -43,9 +44,11 @@ export async function exportLottie(p: Project) {
 			ip: 0,
 			op: duration,
 			st: 0,
-			bm: 0
+			bm: 0,
+			...(l.parentId ? { parent: lottieIndices.get(l.parentId) } : {})
 		};
-		if (l.type === 'rectangle' || l.type === 'ellipse') {
+		if (l.type === 'group') layers.push({ ...base, ty: 3 });
+		else if (l.type === 'rectangle' || l.type === 'ellipse') {
 			const shape = {
 				ty: l.type === 'rectangle' ? 'rc' : 'el',
 				d: 1,
