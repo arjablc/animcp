@@ -21,7 +21,8 @@
 	let session = $state<MotionSession | null>(null),
 		loadError = $state(''),
 		fontError = $state(''),
-		busy = $state(false);
+		busy = $state(false),
+		exportProgress = $state<number | null>(null);
 	let picker = $state<HTMLInputElement>() as HTMLInputElement;
 	let sidebarOpen = $state(true);
 
@@ -134,12 +135,14 @@
 		const s = session;
 		if (!s) return;
 		busy = true;
+		exportProgress = format === 'mp4' ? 0 : null;
 		try {
-			await exportProject(s, format);
+			await exportProject(s, format, (progress) => (exportProgress = progress));
 		} catch (e) {
 			s.error = String(e);
 		} finally {
 			busy = false;
+			exportProgress = null;
 		}
 	}
 	function keyboard(e: KeyboardEvent) {
@@ -235,6 +238,10 @@
 								fontError = '';
 							}}><X /></Button
 						>
+					</div>{/if}
+				{#if exportProgress !== null}<div class="export-status" role="status" aria-live="polite">
+						<span>Recording MP4</span>
+						<strong>{Math.round(exportProgress * 100)}%</strong>
 					</div>{/if}
 				<MotionStage session={s} onImport={(files) => void imported(files)} />
 			</section>
@@ -357,6 +364,26 @@
 		font-size: var(--type-label);
 		line-height: 1.6;
 	}
+	.export-status {
+		position: absolute;
+		z-index: 10;
+		right: 16px;
+		top: 16px;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		border: 1px solid var(--line-bright);
+		border-radius: 6px;
+		background: var(--panel);
+		color: var(--paper);
+		padding: 7px 10px;
+		font-size: var(--type-label);
+		box-shadow: 0 8px 24px #0005;
+	}
+	.export-status strong {
+		color: var(--acid);
+		font-variant-numeric: tabular-nums;
+	}
 	.notice span {
 		flex: 1;
 	}
@@ -401,6 +428,9 @@
 		}
 		.notice {
 			top: 94px;
+		}
+		.export-status {
+			top: 50px;
 		}
 	}
 </style>

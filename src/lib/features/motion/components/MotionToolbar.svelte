@@ -1,5 +1,17 @@
 <script lang="ts">
-	import { Move, Square, Circle, Type, Import, Undo2, Redo2, Bot, Download, FolderPlus } from '@lucide/svelte';
+	import {
+		Move,
+		Square,
+		Circle,
+		Type,
+		Import,
+		Undo2,
+		Redo2,
+		Bot,
+		Download,
+		FolderPlus,
+		Film
+	} from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Popover from '$lib/components/ui/popover';
 	import type { Layer } from '../model';
@@ -133,8 +145,12 @@
 			<Button variant="ghost" disabled={busy} onclick={() => onExport('lottie')}>
 				Lottie animation
 			</Button>
+			<Button variant="ghost" disabled={busy} onclick={() => onExport('mp4')}>
+				<Film size={14} /> MP4 video · H.264
+			</Button>
 			<small>
-				Text and SVG are rasterized in Lottie. Native projects preserve all editable properties.
+				MP4 records the full composition in real time. Text and SVG are rasterized in Lottie; native
+				projects preserve all editable properties.
 			</small>
 		</Popover.Content>
 	</Popover.Root>
