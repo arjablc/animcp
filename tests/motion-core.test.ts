@@ -38,6 +38,21 @@ function fixture() {
 const run = (p: Project, name: string, input: Record<string, unknown>) =>
 	transact(p, [{ name, input }]).project;
 describe('motion tracks', () => {
+	it('creates a composition with the requested canvas settings', () => {
+		const project = createProject('Portrait intro', {
+			width: 1080,
+			height: 1920,
+			fps: 24,
+			background: '#102030'
+		});
+		expect(project.composition).toMatchObject({
+			width: 1080,
+			height: 1920,
+			fps: 24,
+			background: '#102030'
+		});
+	});
+
 	it('creates static multi-subpath layers with animatable draw tracks', () => {
 		const p = createProject();
 		const path = createLayer('path', 'Signature');

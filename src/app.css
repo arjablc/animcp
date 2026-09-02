@@ -11,6 +11,22 @@
 }
 
 @font-face {
+	font-family: 'Anybody';
+	src: url('/fonts/Anybody-SemiBold.ttf') format('truetype');
+	font-style: normal;
+	font-weight: 600;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Anybody';
+	src: url('/fonts/Anybody-Bold.ttf') format('truetype');
+	font-style: normal;
+	font-weight: 700;
+	font-display: swap;
+}
+
+@font-face {
 	font-family: 'iA Writer Quattro';
 	src: url('/fonts/iAWriterQuattroS-Bold.woff') format('woff');
 	font-style: normal;
@@ -64,7 +80,7 @@
 	background: #0b1220;
 	font-synthesis: none;
 	--sans: 'iA Writer Quattro', sans-serif;
-	--display: 'Manrope', sans-serif;
+	--display: 'Anybody', 'Arial Narrow', sans-serif;
 	--mono: 'DM Mono', monospace;
 	--type-display: clamp(3rem, 5.5vw, 4.75rem);
 	--type-title: 1.125rem;

@@ -127,7 +127,10 @@ export function createLayer(type: Layer['type'], name = type as string): Layer {
 	}
 	return layer;
 }
-export function createProject(name = 'Untitled motion'): Project {
+export type ProjectSettings = Partial<
+	Pick<Project['composition'], 'width' | 'height' | 'fps' | 'background'>
+>;
+export function createProject(name = 'Untitled motion', settings: ProjectSettings = {}): Project {
 	return {
 		version: 2,
 		kind: 'motion-graphics',
@@ -135,7 +138,13 @@ export function createProject(name = 'Untitled motion'): Project {
 		name,
 		revision: 0,
 		updatedAt: new Date().toISOString(),
-		composition: { width: 960, height: 540, fps: 30, durationFrames: 150, background: '#101722' },
+		composition: {
+			width: settings.width ?? 960,
+			height: settings.height ?? 540,
+			fps: settings.fps ?? 30,
+			durationFrames: 150,
+			background: settings.background ?? '#101722'
+		},
 		layers: [],
 		assets: []
 	};
