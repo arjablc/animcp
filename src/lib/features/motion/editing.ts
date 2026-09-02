@@ -11,6 +11,7 @@ export function propertyEdits(
 	for (const [property, value] of Object.entries(changes)) {
 		const track = layer.tracks[property];
 		check(track, `Unknown property ${property}`);
+		const existingKey = track.keys.some((key) => key.frame === frame);
 		if (autoKey && !track.keys.length && frame > 0)
 			operations.push({
 				name: 'add_keyframe',
@@ -22,11 +23,28 @@ export function propertyEdits(
 				layerId: layer.id,
 				property,
 				value,
-				...(autoKey ? { frame } : track.keys.length ? { trackEdit: true, referenceFrame: frame } : {})
+				...(autoKey || existingKey
+					? { frame }
+					: track.keys.length
+						? { trackEdit: true, referenceFrame: frame }
+						: {})
 			}
 		});
 	}
 	return operations;
+}
+
+/** Resolve Delete without allowing a held key to change targets after reconciliation. */
+export function deleteShortcutAction(
+	selectedKeyframeIds: string[],
+	selectedLayerIds: string[],
+	selectedProperties: string[],
+	repeated: boolean
+): 'keyframes' | 'layers' | null {
+	if (repeated) return null;
+	if (selectedKeyframeIds.length) return 'keyframes';
+	if (selectedLayerIds.length && !selectedProperties.length) return 'layers';
+	return null;
 }
 export function animationSegments(layer: Layer, property: string) {
 	const track = layer.tracks[property];

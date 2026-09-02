@@ -10,6 +10,7 @@ import { transact } from '../src/lib/features/motion/commands';
 import {
 	propertyEdits,
 	propertyStep,
+	deleteShortcutAction,
 	animationSegments,
 	keyframeMoveBounds,
 	previewLayer
@@ -51,6 +52,17 @@ describe('editor auto-key', () => {
 		expect(track.keys).toHaveLength(2);
 		expect(evaluate(track, 10)).toBe(100);
 	});
+	it('edits only the existing key under the playhead when auto-key is off', () => {
+		let p = fixture();
+		p = transact(p, propertyEdits(p.layers[0], { rotation: 20 }, 20, true)).project;
+		p = transact(p, propertyEdits(p.layers[0], { rotation: 45 }, 20, false)).project;
+		const track = p.layers[0].tracks.rotation;
+		expect(track.keys.map((key) => [key.frame, key.value])).toEqual([
+			[0, 0],
+			[20, 45]
+		]);
+		expect(track.keys).toHaveLength(2);
+	});
 	it.each(['opacity', 'drawStart', 'drawEnd'])('keeps %s edits visible with auto-key off', (property) => {
 		let p = fixture();
 		const layer = p.layers[0];
@@ -65,13 +77,28 @@ describe('editor auto-key', () => {
 			layer.tracks.drawStart = { defaultValue: 0, keys: [] };
 			layer.tracks.drawEnd = { defaultValue: 1, keys: [] };
 		}
-		p = transact(p, propertyEdits(p.layers[0], { [property]: 0 }, 0, true)).project;
-		p = transact(p, propertyEdits(p.layers[0], { [property]: 1 }, 20, true)).project;
-		p = transact(p, propertyEdits(p.layers[0], { [property]: 0 }, 20, false)).project;
+		layer.tracks[property].keys = [
+			{ id: `${property}-start`, frame: 0, value: 0.25, easing: presets.linear },
+			{ id: `${property}-end`, frame: 20, value: 1, easing: presets.linear }
+		];
+		p = transact(p, propertyEdits(p.layers[0], { [property]: 0.5 }, 20, false)).project;
 		const track = p.layers[0].tracks[property];
 		expect(track.keys).toHaveLength(2);
-		expect(evaluate(track, 20)).toBe(0);
-		expect(track.keys.every((key) => key.value === 0)).toBe(true);
+		expect(track.keys.map((key) => key.value)).toEqual([0.25, 0.5]);
+		expect(evaluate(track, 20)).toBe(0.5);
+	});
+	it('deletes keyframes without deleting their layer and ignores held Delete repeats', () => {
+		let p = fixture();
+		p = transact(p, propertyEdits(p.layers[0], { rotation: 20 }, 20, true)).project;
+		const layerId = p.layers[0].id;
+		const keyframeIds = p.layers[0].tracks.rotation.keys.map((key) => key.id);
+		expect(deleteShortcutAction(keyframeIds, [layerId], ['rotation'], false)).toBe('keyframes');
+		p = transact(p, [{ name: 'delete_keyframes', input: { keyframeIds } }]).project;
+		expect(p.layers.map((layer) => layer.id)).toContain(layerId);
+		expect(p.layers[0].tracks.rotation.keys).toHaveLength(0);
+		expect(deleteShortcutAction([], [layerId], ['rotation'], true)).toBeNull();
+		expect(deleteShortcutAction([], [layerId], ['rotation'], false)).toBeNull();
+		expect(deleteShortcutAction([], [layerId], [], false)).toBe('layers');
 	});
 	it('uses fractional input steps for normalized draw properties', () => {
 		expect(propertyStep('drawStart')).toBe(0.01);

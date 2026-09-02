@@ -17,6 +17,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { X } from '@lucide/svelte';
 	import MotionTimeline from './MotionTimeline.svelte';
+	import { deleteShortcutAction } from '../editing';
 	let { id }: { id: string } = $props();
 	let session = $state<MotionSession | null>(null),
 		loadError = $state(''),
@@ -195,10 +196,16 @@
 			);
 		} else if (e.key === 'Delete' || e.key === 'Backspace') {
 			e.preventDefault();
+			const action = deleteShortcutAction(
+				session.context.selectedKeyframeIds,
+				session.context.selectedLayerIds,
+				session.context.selectedProperties,
+				e.repeat
+			);
 			safe(() => {
-				if (session!.context.selectedKeyframeIds.length)
+				if (action === 'keyframes')
 					session!.run('delete_keyframes', { keyframeIds: session!.context.selectedKeyframeIds });
-				else if (session!.context.selectedLayerIds.length)
+				else if (action === 'layers')
 					session!.commit(
 						session!.context.selectedLayerIds.map((layerId) => ({
 							name: 'delete_layer',
