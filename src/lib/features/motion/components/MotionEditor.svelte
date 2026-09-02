@@ -25,6 +25,10 @@
 		exportProgress = $state<number | null>(null);
 	let picker = $state<HTMLInputElement>() as HTMLInputElement;
 	let sidebarOpen = $state(true);
+	let activeTool = $state<'move' | 'pen'>('move');
+	let timelineHeight = $state(254);
+	let timelineExpanded = $state(false);
+	let resizingTimeline = $state(false);
 
 	// onMount runs only in the browser. Its returned function cleans up playback and WebMCP.
 	onMount(() => {
@@ -154,7 +158,14 @@
 			(e.target as HTMLElement)?.isContentEditable
 		)
 			return;
-		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+		if (activeTool === 'pen' && e.key === 'Enter') {
+			e.preventDefault();
+			window.dispatchEvent(new CustomEvent('motion:finish-pen'));
+		} else if (activeTool === 'pen' && e.key === 'Escape') {
+			e.preventDefault();
+			window.dispatchEvent(new CustomEvent('motion:cancel-pen'));
+			activeTool = 'move';
+		} else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
 			e.preventDefault();
 			safe(() => (e.shiftKey ? session!.redo() : session!.undo()));
 		} else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
@@ -198,10 +209,27 @@
 			});
 		}
 	}
+	function resizeTimeline(e: PointerEvent) {
+		if (!resizingTimeline) return;
+		timelineHeight = Math.max(
+			180,
+			Math.min(window.innerHeight - 140, window.innerHeight - e.clientY)
+		);
+		timelineExpanded = timelineHeight > window.innerHeight * 0.55;
+	}
+	function toggleTimelineView() {
+		timelineExpanded = !timelineExpanded;
+		timelineHeight = timelineExpanded ? Math.round(window.innerHeight * 0.75) : 254;
+	}
 </script>
 
 <svelte:head><title>AniMCP — Motion studio</title></svelte:head>
-<svelte:window onkeydown={keyboard} />
+<svelte:window
+	onkeydown={keyboard}
+	onpointermove={resizeTimeline}
+	onpointerup={() => (resizingTimeline = false)}
+	onpointercancel={() => (resizingTimeline = false)}
+/>
 {#if session}{@const s = session}
 	<main class="studio dark">
 		<Sidebar.Provider
@@ -214,6 +242,8 @@
 				<MotionToolbar
 					session={s}
 					{busy}
+					{activeTool}
+					onToolChange={(tool) => (activeTool = tool)}
 					onCreate={create}
 					onGroup={groupSelected}
 					onImport={() => picker.click()}
@@ -243,10 +273,43 @@
 						<span>Recording MP4</span>
 						<strong>{Math.round(exportProgress * 100)}%</strong>
 					</div>{/if}
-				<MotionStage session={s} onImport={(files) => void imported(files)} />
+				<MotionStage
+					session={s}
+					{activeTool}
+					onToolChange={(tool) => (activeTool = tool)}
+					onImport={(files) => void imported(files)}
+				/>
 			</section>
 			<MotionInspector session={s} /></Sidebar.Provider
-		><MotionTimeline session={s} />
+		>
+		<button
+			type="button"
+			class="timeline-resizer"
+			class:active={resizingTimeline}
+			aria-label="Resize timeline and stage"
+			onpointerdown={(event) => {
+				event.preventDefault();
+				resizingTimeline = true;
+				(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+			}}
+			onkeydown={(event) => {
+				if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+				event.preventDefault();
+				timelineHeight = Math.max(
+					180,
+					Math.min(window.innerHeight - 140, timelineHeight + (event.key === 'ArrowUp' ? 24 : -24))
+				);
+			}}
+		>
+			<span></span>
+		</button>
+		<MotionTimeline
+			session={s}
+			height={timelineHeight}
+			expanded={timelineExpanded}
+			resizing={resizingTimeline}
+			onToggleView={toggleTimelineView}
+		/>
 	</main>{:else}<div class="loading">
 		<a href={resolve('/')}>← AniMCP</a>
 		<p>{loadError || 'Opening motion studio…'}</p>
@@ -346,6 +409,53 @@
 		background-color: var(--ink);
 		background-image: radial-gradient(#49698932 0.7px, transparent 0.7px);
 		background-size: 16px 16px;
+	}
+	.timeline-resizer {
+		position: relative;
+		z-index: 20;
+		height: 7px;
+		min-height: 7px;
+		margin-top: -3px;
+		cursor: ns-resize;
+		background: transparent;
+		border: 0;
+		padding: 0;
+		touch-action: none;
+	}
+	.timeline-resizer::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 3px;
+		height: 1px;
+		background: var(--line);
+		transition: background 140ms ease-out;
+	}
+	.timeline-resizer span {
+		position: absolute;
+		left: 50%;
+		top: 1px;
+		width: 42px;
+		height: 5px;
+		transform: translateX(-50%);
+		border-radius: 3px;
+		background: var(--line-bright);
+		opacity: 0;
+		transition: opacity 140ms ease-out;
+	}
+	.timeline-resizer:hover span,
+	.timeline-resizer:focus-visible span,
+	.timeline-resizer.active span {
+		opacity: 1;
+	}
+	.timeline-resizer:hover::before,
+	.timeline-resizer.active::before {
+		background: var(--acid);
+	}
+	.timeline-resizer:focus-visible {
+		outline: 2px solid var(--acid);
+		outline-offset: -2px;
 	}
 	.notice {
 		position: absolute;

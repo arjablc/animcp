@@ -11,17 +11,34 @@
 		ZoomOut,
 		Repeat2,
 		Film,
-		CornerDownRight
+		CornerDownRight,
+		Maximize2,
+		Minimize2,
+		GripVertical
 	} from '@lucide/svelte';
 	import type { MotionSession } from '../session.svelte';
 	import type { Layer, Key } from '../model';
 	import { animationSegments, keyframeMoveBounds } from '../editing';
-	let { session }: { session: MotionSession } = $props();
+	let {
+		session,
+		height,
+		expanded,
+		resizing,
+		onToggleView
+	}: {
+		session: MotionSession;
+		height: number;
+		expanded: boolean;
+		resizing: boolean;
+		onToggleView: () => void;
+	} = $props();
 	let zoom = $state(8),
 		collapsed = $state<string[]>([]),
 		scroller = $state<HTMLDivElement>() as HTMLDivElement,
 		content = $state<HTMLDivElement>() as HTMLDivElement;
 	let scrub = $state(false),
+		rowDrag = $state<{ id: string; revision: number } | null>(null),
+		rowTarget = $state<string | null>(null),
 		barSelection = $state<{
 			startX: number;
 			startY: number;
@@ -59,6 +76,23 @@
 	const duration = $derived(session.project.composition.durationFrames);
 	const trackWidth = $derived(duration * zoom + 80);
 	const tickStep = $derived(zoom < 4 ? 30 : zoom < 8 ? 15 : 10);
+	const selectedAnimationCount = $derived(
+		session.project.layers.reduce(
+			(count, layer) =>
+				count +
+				Object.keys(layer.tracks).reduce(
+					(propertyCount, property) =>
+						propertyCount +
+						animationSegments(layer, property).filter(
+							(segment) =>
+								session.context.selectedKeyframeIds.includes(segment.start.id) &&
+								session.context.selectedKeyframeIds.includes(segment.end.id)
+						).length,
+					0
+				),
+			0
+		)
+	);
 	function seek(e: PointerEvent) {
 		const rect = content.getBoundingClientRect();
 		session.seek(
@@ -193,6 +227,35 @@
 	function toggle(id: string) {
 		collapsed = collapsed.includes(id) ? collapsed.filter((i) => i !== id) : [...collapsed, id];
 	}
+	function reorderRow(targetId: string) {
+		const source = rowDrag;
+		rowDrag = null;
+		rowTarget = null;
+		if (!source || source.id === targetId) return;
+		const ordered = timelineRows.map((row) => row.layer.id).filter((id) => id !== source.id);
+		const targetIndex = ordered.indexOf(targetId);
+		if (targetIndex < 0) return;
+		ordered.splice(targetIndex, 0, source.id);
+		try {
+			session.commit(
+				[
+					{
+						name: 'reorder_layer',
+						input: {
+							layerId: source.id,
+							index: session.project.layers.length - 1 - ordered.indexOf(source.id)
+						}
+					}
+				],
+				'Reordered timeline',
+				'human',
+				source.revision
+			);
+			session.error = '';
+		} catch (error) {
+			session.error = String(error);
+		}
+	}
 	function wheel(e: WheelEvent) {
 		if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
 			e.preventDefault();
@@ -232,7 +295,14 @@
 	}}
 />
 
-<section class="timeline" aria-label="Animation timeline">
+<section
+	class="timeline"
+	class:expanded
+	class:resizing
+	aria-label="Animation timeline"
+	style:height={`${height}px`}
+	style:flex-basis={`${height}px`}
+>
 	<div class="timeline-toolbar">
 		<div class="transport">
 			<Button
@@ -261,9 +331,15 @@
 				).padStart(2, '0')}<small> / {duration - 1}f</small></span
 			>
 		</div>
-		<span class="timeline-title"><Film size={13} /> Timeline</span><label
-			class:enabled={session.autoKey}
-			class="auto-key"
+		<span class="timeline-title"><Film size={13} /> Timeline</span><Button
+			variant="ghost"
+			size="icon-xs"
+			class="editor-icon timeline-view-toggle"
+			aria-label={expanded ? 'Restore timeline view' : 'Expand timeline view'}
+			title={expanded ? 'Restore timeline view' : 'Timeline view'}
+			onclick={onToggleView}
+			>{#if expanded}<Minimize2 />{:else}<Maximize2 />{/if}</Button
+		><label class:enabled={session.autoKey} class="auto-key"
 			><Checkbox
 				aria-label="Auto-key"
 				class="auto-checkbox"
@@ -344,10 +420,27 @@
 					style:left={`${labelWidth}px`}
 					style:background-size={`${tickStep * zoom}px 100%`}
 				></div>
-				{#each timelineRows as row (row.layer.id)}{@const l = row.layer}{@const animated = Object.entries(
-						l.tracks
-					).filter(([, t]) => t.keys.length)}
-					<div class="layer-track" class:group-track={l.type === 'group'}>
+				{#each timelineRows as row (row.layer.id)}{@const l = row.layer}{@const animated =
+						Object.entries(l.tracks).filter(([, t]) => t.keys.length)}
+					<div
+						class="layer-track"
+						role="group"
+						aria-label={`${l.name} timeline row`}
+						class:group-track={l.type === 'group'}
+						class:drop-target={rowTarget === l.id}
+						ondragover={(event) => {
+							if (!rowDrag) return;
+							event.preventDefault();
+							rowTarget = l.id;
+						}}
+						ondragleave={() => {
+							if (rowTarget === l.id) rowTarget = null;
+						}}
+						ondrop={(event) => {
+							event.preventDefault();
+							reorderRow(l.id);
+						}}
+					>
 						<div
 							class="sticky-label layer-track-label"
 							class:selected={session.context.selectedLayerIds.includes(l.id)}
@@ -360,7 +453,20 @@
 								>{#if collapsed.includes(l.id)}<ChevronRight size={12} />{:else}<ChevronDown
 										size={12}
 									/>{/if}</button
-							><span class="timeline-tree-gutter" style:width={`${row.depth * 13}px`} aria-hidden="true"
+							><button
+								class="row-drag-handle"
+								draggable="true"
+								aria-label={`Reorder ${l.name} timeline`}
+								title="Drag to reorder timeline"
+								ondragstart={() => (rowDrag = { id: l.id, revision: session.project.revision })}
+								ondragend={() => {
+									rowDrag = null;
+									rowTarget = null;
+								}}><GripVertical size={12} /></button
+							><span
+								class="timeline-tree-gutter"
+								style:width={`${row.depth * 13}px`}
+								aria-hidden="true"
 								>{#if row.depth > 0}<CornerDownRight size={11} />{/if}</span
 							><button
 								class="track-name"
@@ -373,11 +479,13 @@
 							aria-label={`Select ${l.name} track`}
 							onclick={() => session.select([l.id])}
 							style:width={`${trackWidth}px`}
-								>{#if !animated.length}{#if row.childCount}<span
+							>{#if !animated.length}{#if row.childCount}<span
 										>{row.childCount} {row.childCount === 1 ? 'layer' : 'layers'}</span
 									>{:else}<span>Add keyframes or enable Auto-key to animate</span>{/if}
-									>{:else if collapsed.includes(l.id)}<span
-										>{row.childCount ? `${row.childCount} ${row.childCount === 1 ? 'layer' : 'layers'} · ` : ''}{animated.length} animated {animated.length === 1
+								>{:else if collapsed.includes(l.id)}<span
+									>{row.childCount
+										? `${row.childCount} ${row.childCount === 1 ? 'layer' : 'layers'} · `
+										: ''}{animated.length} animated {animated.length === 1
 										? 'property'
 										: 'properties'}</span
 								>{/if}</button
@@ -467,12 +575,12 @@
 						Your animation starts here. Add a layer from the toolbar.
 					</p>{/if}
 				{#if barSelection}<div
-					class="bar-selection"
-					style:left={`${Math.min(barSelection.startX, barSelection.endX)}px`}
-					style:top={`${Math.min(barSelection.startY, barSelection.endY)}px`}
-					style:width={`${Math.abs(barSelection.endX - barSelection.startX)}px`}
-					style:height={`${Math.abs(barSelection.endY - barSelection.startY)}px`}
-				></div>{/if}
+						class="bar-selection"
+						style:left={`${Math.min(barSelection.startX, barSelection.endX)}px`}
+						style:top={`${Math.min(barSelection.startY, barSelection.endY)}px`}
+						style:width={`${Math.abs(barSelection.endX - barSelection.startX)}px`}
+						style:height={`${Math.abs(barSelection.endY - barSelection.startY)}px`}
+					></div>{/if}
 				<div
 					class="playhead-line"
 					style:left={`${labelWidth + session.context.currentFrame * zoom}px`}
@@ -489,24 +597,38 @@
 	</div>
 	<div class="timeline-footer">
 		<span
-			>{session.context.selectedKeyframeIds.length > 1
-				? 'Drag animation to move · drag edges to trim · easing in Properties'
-				: 'Drag across bars to select · Shift adds bars · Shift + scroll pans horizontally'}</span
-		><span>{session.autoKey ? 'Auto-key on · edits create animation' : 'Auto-key off'}</span>
+			>{selectedAnimationCount > 1
+				? `${selectedAnimationCount} animations selected · edit easing or delete together in Properties`
+				: selectedAnimationCount === 1
+					? 'Drag animation to move · drag edges to trim · easing in Properties'
+					: 'Drag across bars to select · Shift adds bars · Shift + scroll pans horizontally'}</span
+		><span>{session.autoKey
+				? 'Auto-key on · edits create animation'
+				: 'Auto-key off · edits adjust the whole track'}</span>
 	</div>
 </section>
 
 <style>
 	.timeline {
-		height: 254px;
 		min-height: 180px;
-		flex: 0 0 254px;
+		flex-grow: 0;
+		flex-shrink: 0;
 		background: #171c24;
 		border-top: 1px solid #353d49;
 		display: flex;
 		flex-direction: column;
 		min-width: 0;
 		color: #99a9be;
+		transition:
+			height 260ms cubic-bezier(0.22, 1, 0.36, 1),
+			flex-basis 260ms cubic-bezier(0.22, 1, 0.36, 1),
+			box-shadow 260ms ease-out;
+	}
+	.timeline.expanded {
+		box-shadow: 0 -18px 44px #0008;
+	}
+	.timeline.resizing {
+		transition: none;
 	}
 	.timeline-toolbar {
 		height: 44px;
@@ -548,6 +670,9 @@
 		gap: 7px;
 		font-size: var(--type-label);
 		color: #9bacc0;
+	}
+	:global(.timeline-view-toggle) {
+		margin-left: -8px;
 	}
 	.auto-key {
 		display: flex;
@@ -682,6 +807,9 @@
 		display: flex;
 		position: relative;
 	}
+	.layer-track.drop-target {
+		box-shadow: inset 0 2px 0 var(--acid);
+	}
 	.layer-track-label {
 		display: flex;
 		align-items: center;
@@ -713,6 +841,25 @@
 		color: #a9b9cb;
 		padding: 0;
 		cursor: pointer;
+	}
+	.row-drag-handle {
+		width: 18px;
+		height: 24px;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: #61748b;
+		cursor: grab;
+		display: inline-grid;
+		place-items: center;
+	}
+	.row-drag-handle:hover,
+	.row-drag-handle:focus-visible {
+		color: var(--acid);
+		outline: none;
+	}
+	.row-drag-handle:active {
+		cursor: grabbing;
 	}
 	.track-name.group-name {
 		font-weight: 600;

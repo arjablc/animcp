@@ -13,10 +13,16 @@ export type Track = {
 	>;
 };
 export type Paint = { type: 'solid' | 'linear' | 'radial'; stops: string[] };
+export type PathCommand =
+	| { type: 'M'; x: number; y: number }
+	| { type: 'L'; x: number; y: number }
+	| { type: 'C'; x1: number; y1: number; x2: number; y2: number; x: number; y: number }
+	| { type: 'Z' };
+export type PathData = PathCommand[];
 export type Layer = {
 	id: string;
 	name: string;
-	type: 'rectangle' | 'ellipse' | 'text' | 'svg' | 'png' | 'group';
+	type: 'rectangle' | 'ellipse' | 'text' | 'path' | 'svg' | 'png' | 'group';
 	/** A group is a normal animated layer; its transform is composed before this layer's. */
 	parentId?: string;
 	visible: boolean;
@@ -30,6 +36,8 @@ export type Layer = {
 	letterSpacing: number;
 	textAlign: 'left' | 'center' | 'right';
 	assetId?: string;
+	/** Static vector geometry. Path animation is intentionally styling/transform-only in v1. */
+	paths?: PathData[];
 	paint: Paint;
 	tracks: Record<string, Track>;
 };
@@ -69,13 +77,13 @@ export const presets: Record<string, Easing> = {
 	snappy: { type: 'bezier', x1: 0.16, y1: 1, x2: 0.3, y2: 1 },
 	smooth: { type: 'bezier', x1: 0.4, y1: 0, x2: 0.2, y2: 1 },
 	'strong-out': { type: 'bezier', x1: 0.16, y1: 1, x2: 0.3, y2: 1 },
-	'strong-in': { type: 'bezier', x1: 0.7, y1: 0, x2: 0.84, y2: 0 }
-	, 'spring-gentle': { type: 'spring', mass: 1, stiffness: 100, damping: 14, velocity: 0 }
-	, 'spring-snappy': { type: 'spring', mass: 1, stiffness: 180, damping: 18, velocity: 0 }
-	, 'spring-bouncy': { type: 'spring', mass: 1, stiffness: 120, damping: 6, velocity: 0 }
+	'strong-in': { type: 'bezier', x1: 0.7, y1: 0, x2: 0.84, y2: 0 },
+	'spring-gentle': { type: 'spring', mass: 1, stiffness: 100, damping: 14, velocity: 0 },
+	'spring-snappy': { type: 'spring', mass: 1, stiffness: 180, damping: 18, velocity: 0 },
+	'spring-bouncy': { type: 'spring', mass: 1, stiffness: 120, damping: 6, velocity: 0 }
 };
 export function createLayer(type: Layer['type'], name = type as string): Layer {
-	return {
+	const layer: Layer = {
 		id: uid(),
 		name,
 		type,
@@ -109,6 +117,15 @@ export function createLayer(type: Layer['type'], name = type as string): Layer {
 			}).map(([k, v]) => [k, track(v)])
 		)
 	};
+	if (type === 'path') {
+		layer.paths = [];
+		layer.tracks.drawStart = track(0);
+		layer.tracks.drawEnd = track(1);
+		layer.tracks.fill.defaultValue = '#dfff4f';
+		layer.tracks.stroke.defaultValue = '#8fcad8';
+		layer.tracks.strokeWidth.defaultValue = 4;
+	}
+	return layer;
 }
 export function createProject(name = 'Untitled motion'): Project {
 	return {
@@ -154,10 +171,15 @@ export function easingAt(e: Easing, t: number): number {
 	if (e.type === 'spring') {
 		if (t <= 0) return 0;
 		if (t >= 1) return 1;
-		const w0 = Math.sqrt(e.stiffness / e.mass), zeta = e.damping / (2 * Math.sqrt(e.stiffness * e.mass));
+		const w0 = Math.sqrt(e.stiffness / e.mass),
+			zeta = e.damping / (2 * Math.sqrt(e.stiffness * e.mass));
 		if (zeta < 1) {
 			const wd = w0 * Math.sqrt(1 - zeta * zeta);
-			return 1 - Math.exp(-zeta * w0 * t) * (Math.cos(wd * t) + ((zeta * w0 - e.velocity) / wd) * Math.sin(wd * t));
+			return (
+				1 -
+				Math.exp(-zeta * w0 * t) *
+					(Math.cos(wd * t) + ((zeta * w0 - e.velocity) / wd) * Math.sin(wd * t))
+			);
 		}
 		return 1 - Math.exp(-w0 * t) * (1 + (w0 - e.velocity) * t);
 	}
@@ -232,11 +254,29 @@ export function validateEasing(e: Easing) {
 		number(e.x1, 0, 1);
 		number(e.x2, 0, 1);
 		number(e.y1, -10, 10);
-		 number(e.y2, -10, 10);
+		number(e.y2, -10, 10);
 	}
 	if (e.type === 'spring') {
-		number(e.mass, 0.01, 10); number(e.stiffness, 1, 2000); number(e.damping, 0, 200); number(e.velocity, -100, 100);
+		number(e.mass, 0.01, 10);
+		number(e.stiffness, 1, 2000);
+		number(e.damping, 0, 200);
+		number(e.velocity, -100, 100);
 	}
+}
+export function propertyBounds(property: string): [number, number] {
+	if (
+		property === 'opacity' ||
+		property === 'paintOpacity' ||
+		property === 'drawStart' ||
+		property === 'drawEnd' ||
+		property.endsWith('.opacity') ||
+		property.endsWith('.offset')
+	)
+		return [0, 1];
+	if (property === 'scaleX' || property === 'scaleY') return [0.001, 100];
+	if (['width', 'height', 'gradient.radius'].includes(property)) return [0.001, 10000];
+	if (['cornerRadius', 'strokeWidth'].includes(property)) return [0, 10000];
+	return [-1e6, 1e6];
 }
 export function validateValue(property: string, v: Value) {
 	if (property === 'fill' || property === 'stroke' || property.endsWith('.color'))
@@ -244,6 +284,8 @@ export function validateValue(property: string, v: Value) {
 	else if (
 		property === 'opacity' ||
 		property === 'paintOpacity' ||
+		property === 'drawStart' ||
+		property === 'drawEnd' ||
 		property.endsWith('.opacity') ||
 		property.endsWith('.offset')
 	)
@@ -268,6 +310,42 @@ const bases = [
 	'stroke',
 	'strokeWidth'
 ];
+
+function validatePathCommand(command: unknown): asserts command is PathCommand {
+	check(command && typeof command === 'object', 'Invalid path command');
+	const c = command as Record<string, unknown>;
+	check(['M', 'L', 'C', 'Z'].includes(String(c.type)), 'Invalid path command');
+	const coordinates =
+		c.type === 'C' ? ['x1', 'y1', 'x2', 'y2', 'x', 'y'] : c.type === 'Z' ? [] : ['x', 'y'];
+	check(
+		Object.keys(c).every((key) => key === 'type' || coordinates.includes(key)),
+		'Invalid path command'
+	);
+	for (const key of coordinates) number(c[key], -1_000_000, 1_000_000);
+}
+
+export function validatePaths(paths: unknown): asserts paths is PathData[] {
+	check(Array.isArray(paths) && paths.length > 0 && paths.length <= 200, 'Invalid path collection');
+	let commands = 0;
+	for (const path of paths) {
+		check(Array.isArray(path) && path.length >= 2, 'A path needs at least two points');
+		check(path[0]?.type === 'M', 'A path must start with a move command');
+		let closed = false;
+		for (const command of path) {
+			validatePathCommand(command);
+			check(!closed, 'Commands cannot follow a close command');
+			if (command.type === 'Z') closed = true;
+			commands++;
+		}
+	}
+	check(commands <= 10_000, 'Path contains too many points');
+}
+
+/** Copy validated geometry without relying on structuredClone, which rejects reactive proxies. */
+export function copyPaths(paths: unknown): PathData[] {
+	validatePaths(paths);
+	return paths.map((path) => path.map((command) => ({ ...command })));
+}
 const gradientProps = [
 	'startX',
 	'startY',
@@ -326,7 +404,10 @@ export function validateProject(input: unknown): Project {
 	for (const l of p.layers) {
 		unique(l.id);
 		string(l.name, 200);
-		check(['rectangle', 'ellipse', 'text', 'svg', 'png', 'group'].includes(l.type), 'Invalid layer type');
+		check(
+			['rectangle', 'ellipse', 'text', 'path', 'svg', 'png', 'group'].includes(l.type),
+			'Invalid layer type'
+		);
 		check(typeof l.visible === 'boolean' && typeof l.locked === 'boolean', 'Invalid layer flags');
 		string(l.text, 10000);
 		string(l.fontFamily, 200);
@@ -347,6 +428,8 @@ export function validateProject(input: unknown): Project {
 				),
 				'Missing or incompatible asset'
 			);
+		if (l.type === 'path') validatePaths(l.paths);
+		else check(l.paths === undefined, 'Only path layers may include vector paths');
 		check(
 			l.paint &&
 				['solid', 'linear', 'radial'].includes(l.paint.type) &&
@@ -359,6 +442,10 @@ export function validateProject(input: unknown): Project {
 			'Gradients need at least two stops'
 		);
 		const allowed = new Set(bases);
+		if (l.type === 'path') {
+			allowed.add('drawStart');
+			allowed.add('drawEnd');
+		}
 		if (l.paint.type !== 'solid') {
 			for (const name of gradientProps) allowed.add(`gradient.${name}`);
 			for (const id of l.paint.stops) {

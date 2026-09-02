@@ -1,4 +1,4 @@
-import { check, evaluate, type Layer, type Value } from './model';
+import { check, evaluate, propertyBounds, type Layer, type Value } from './model';
 import type { Operation } from './commands';
 /** Seed the original pose when auto-key starts a previously unanimated track after frame zero. */
 export function propertyEdits(
@@ -22,7 +22,7 @@ export function propertyEdits(
 				layerId: layer.id,
 				property,
 				value,
-				...(autoKey || track.keys.length ? { frame } : {})
+				...(autoKey ? { frame } : track.keys.length ? { trackEdit: true, referenceFrame: frame } : {})
 			}
 		});
 	}
@@ -57,21 +57,9 @@ export function previewLayer(
 	};
 }
 export function propertyStep(property: string) {
-	return /scale|opacity|Opacity|^gradient\./.test(property) ? 0.01 : 1;
+	return /scale|opacity|Opacity|^draw(Start|End)$|^gradient\./.test(property) ? 0.01 : 1;
 }
-export function propertyBounds(property: string): [number, number] {
-	if (
-		property === 'opacity' ||
-		property === 'paintOpacity' ||
-		property.endsWith('.opacity') ||
-		property.endsWith('.offset')
-	)
-		return [0, 1];
-	if (property === 'scaleX' || property === 'scaleY') return [0.001, 100];
-	if (['width', 'height', 'gradient.radius'].includes(property)) return [0.001, 10000];
-	if (['cornerRadius', 'strokeWidth'].includes(property)) return [0, 10000];
-	return [-1e6, 1e6];
-}
+export { propertyBounds } from './model';
 export function numericValue(layer: Layer, property: string, frame: number) {
 	return Number(evaluate(layer.tracks[property], frame));
 }

@@ -9,6 +9,7 @@ import {
 import { transact } from '../src/lib/features/motion/commands';
 import {
 	propertyEdits,
+	propertyStep,
 	animationSegments,
 	keyframeMoveBounds,
 	previewLayer
@@ -38,14 +39,43 @@ describe('editor auto-key', () => {
 		expect(next.tracks.rotation.keys).toHaveLength(0);
 		expect(evaluate(next.tracks.rotation, 0)).toBe(45);
 	});
-	it('creates only one key at frame zero and updates existing animated values', () => {
+	it('adjusts an existing animation without creating a key when auto-key is off', () => {
 		let p = fixture();
-		p = transact(p, propertyEdits(p.layers[0], { rotation: 15 }, 0, true)).project;
-		expect(p.layers[0].tracks.rotation.keys).toHaveLength(1);
-		p = transact(p, propertyEdits(p.layers[0], { rotation: 45 }, 30, false)).project;
-		expect(p.layers[0].tracks.rotation.keys.map((k) => k.frame)).toEqual([0, 30]);
-		p = transact(p, propertyEdits(p.layers[0], { rotation: 75 }, 30, false)).project;
-		expect(p.layers[0].tracks.rotation.keys.map((k) => k.value)).toEqual([15, 75]);
+		p = transact(p, propertyEdits(p.layers[0], { rotation: 20 }, 20, true)).project;
+		p = transact(p, propertyEdits(p.layers[0], { rotation: 100 }, 10, false)).project;
+		const track = p.layers[0].tracks.rotation;
+		expect(track.keys.map((k) => [k.frame, k.value])).toEqual([
+			[0, 90],
+			[20, 110]
+		]);
+		expect(track.keys).toHaveLength(2);
+		expect(evaluate(track, 10)).toBe(100);
+	});
+	it.each(['opacity', 'drawStart', 'drawEnd'])('keeps %s edits visible with auto-key off', (property) => {
+		let p = fixture();
+		const layer = p.layers[0];
+		if (property.startsWith('draw')) {
+			layer.type = 'path';
+			layer.paths = [
+				[
+					{ type: 'M', x: 0, y: 0 },
+					{ type: 'L', x: 100, y: 100 }
+				]
+			];
+			layer.tracks.drawStart = { defaultValue: 0, keys: [] };
+			layer.tracks.drawEnd = { defaultValue: 1, keys: [] };
+		}
+		p = transact(p, propertyEdits(p.layers[0], { [property]: 0 }, 0, true)).project;
+		p = transact(p, propertyEdits(p.layers[0], { [property]: 1 }, 20, true)).project;
+		p = transact(p, propertyEdits(p.layers[0], { [property]: 0 }, 20, false)).project;
+		const track = p.layers[0].tracks[property];
+		expect(track.keys).toHaveLength(2);
+		expect(evaluate(track, 20)).toBe(0);
+		expect(track.keys.every((key) => key.value === 0)).toBe(true);
+	});
+	it('uses fractional input steps for normalized draw properties', () => {
+		expect(propertyStep('drawStart')).toBe(0.01);
+		expect(propertyStep('drawEnd')).toBe(0.01);
 	});
 	it('seeds gradient colors and handles using the same auto-key behavior', () => {
 		const p = fixture(),

@@ -1,9 +1,11 @@
 import {
 	addStop,
 	check,
+	copyPaths,
 	createLayer,
 	evaluate,
 	number,
+	propertyBounds,
 	presets,
 	setGradient,
 	string,
@@ -53,6 +55,40 @@ function put(t: Track, frame: number, value: Value, easing?: Easing) {
 	} else
 		t.keys.push({ id: uid(), frame, value, easing: structuredClone(easing ?? presets.linear) });
 	t.keys.sort((a, b) => a.frame - b.frame);
+}
+/**
+ * Change an animated property without creating a key. Bounded values are remapped
+ * affinely so the value at the playhead lands exactly on the edit while the motion
+ * shape remains intact; unbounded values are translated by the same delta.
+ */
+function editWholeTrack(t: Track, property: string, frame: number, target: Value) {
+	const current = evaluate(t, frame);
+	if (typeof target !== 'number' || typeof current !== 'number') {
+		t.defaultValue = target;
+		for (const key of t.keys) key.value = target;
+		return;
+	}
+	const [min, max] = propertyBounds(property);
+	const bounded =
+		property === 'opacity' ||
+		property === 'paintOpacity' ||
+		property === 'drawStart' ||
+		property === 'drawEnd' ||
+		property === 'scaleX' ||
+		property === 'scaleY' ||
+		['width', 'height', 'gradient.radius', 'cornerRadius', 'strokeWidth'].includes(property) ||
+		property.endsWith('.opacity') ||
+		property.endsWith('.offset');
+	const map = (raw: Value) => {
+		const value = Number(raw);
+		if (bounded && target < current && current > min)
+			return min + (value - min) * ((target - min) / (current - min));
+		if (bounded && target > current && current < max)
+			return max - (max - value) * ((max - target) / (max - current));
+		return value + target - current;
+	};
+	t.defaultValue = map(t.defaultValue);
+	for (const key of t.keys) key.value = map(key.value);
 }
 function easing(input: Input): Easing {
 	const e = typeof input.preset === 'string' ? presets[input.preset] : (input.easing as Easing);
@@ -180,15 +216,34 @@ function apply(p: Project, op: Operation): unknown {
 				l.tracks.width.defaultValue = a.width;
 				l.tracks.height.defaultValue = a.height;
 			}
+			if (l.type === 'path') {
+				l.paths = copyPaths(i.paths);
+				const bounds = i.bounds as Record<string, unknown> | undefined;
+				check(bounds && typeof bounds === 'object', 'A path needs bounds');
+				for (const property of ['positionX', 'positionY', 'width', 'height'] as const)
+					l.tracks[property].defaultValue = number(
+						bounds[property],
+						property.startsWith('position') ? -1e6 : 0.001
+					);
+			}
 			p.layers.push(l);
 			return { layerId: l.id };
+		}
+		case 'set_path': {
+			const l = editable(p, i.layerId);
+			check(l.type === 'path', 'Only path layers have editable path points');
+			l.paths = copyPaths(i.paths);
+			return;
 		}
 		case 'group_layers': {
 			const childIds = strings(i.layerIds);
 			check(childIds.length >= 2, 'Select at least two layers to group');
 			check(new Set(childIds).size === childIds.length, 'Duplicate group child');
 			const children = childIds.map((id) => editable(p, id));
-			check(children.every((child) => child.type !== 'group'), 'Group nested groups separately');
+			check(
+				children.every((child) => child.type !== 'group'),
+				'Group nested groups separately'
+			);
 			const parentId = children[0].parentId;
 			check(
 				children.every((child) => child.parentId === parentId),
@@ -196,7 +251,9 @@ function apply(p: Project, op: Operation): unknown {
 			);
 			const group = createLayer('group', string(i.name ?? 'Group', 200));
 			group.parentId = parentId;
-			const left = Math.min(...children.map((child) => Number(evaluate(child.tracks.positionX, 0))));
+			const left = Math.min(
+				...children.map((child) => Number(evaluate(child.tracks.positionX, 0)))
+			);
 			const top = Math.min(...children.map((child) => Number(evaluate(child.tracks.positionY, 0))));
 			const right = Math.max(
 				...children.map(
@@ -269,7 +326,7 @@ function apply(p: Project, op: Operation): unknown {
 		case 'delete_layer': {
 			editable(p, i.layerId);
 			const toDelete = new Set<string>([String(i.layerId)]);
-			for (let changed = true; changed; ) {
+			for (let changed = true; changed;) {
 				changed = false;
 				for (const layer of p.layers)
 					if (layer.parentId && toDelete.has(layer.parentId) && !toDelete.has(layer.id)) {
@@ -297,8 +354,8 @@ function apply(p: Project, op: Operation): unknown {
 						'fontStyle',
 						'fontSize',
 						'lineHeight',
-						'letterSpacing'
-						,'textAlign'
+						'letterSpacing',
+						'textAlign'
 					].includes(key),
 					'Unsupported layer field'
 				);
@@ -322,12 +379,11 @@ function apply(p: Project, op: Operation): unknown {
 				t = l.tracks[property];
 			check(t, 'Property not found');
 			const v = i.value === undefined ? evaluate(t, number(i.frame, 0)) : (i.value as Value);
-			if (op.name === 'add_keyframe' || i.frame !== undefined)
+			if (op.name === 'set_property' && i.trackEdit === true) {
+				editWholeTrack(t, property, number(i.referenceFrame, 0), v);
+			} else if (op.name === 'add_keyframe' || i.frame !== undefined)
 				put(t, number(i.frame, 0), v, i.easing ? easing(i) : undefined);
-			else {
-				check(!t.keys.length, 'Animated property requires an explicit frame');
-				t.defaultValue = v;
-			}
+			else t.defaultValue = v;
 			return;
 		}
 		case 'set_paint': {

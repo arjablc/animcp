@@ -2,15 +2,26 @@
 	import { presets, easingAt, type Layer, type Key, type Easing } from '../model';
 	import type { MotionSession } from '../session.svelte';
 	import { Button } from '$lib/components/ui/button';
-	import { ClipboardCopy, ClipboardPaste, Spline, Timer, ArrowRight } from '@lucide/svelte';
+	import { ClipboardCopy, ClipboardPaste, Spline, Timer, ArrowRight, Trash2 } from '@lucide/svelte';
 	import NumericInput from './NumericInput.svelte';
 	let {
 		session,
-		layer,
-		property,
-		start,
-		end
-	}: { session: MotionSession; layer: Layer; property: string; start: Key; end: Key } = $props();
+		segments
+	}: {
+		session: MotionSession;
+		segments: { layer: Layer; property: string; start: Key; end: Key }[];
+	} = $props();
+	const selected = $derived(segments[0]);
+	const layer = $derived(selected.layer);
+	const property = $derived(selected.property);
+	const start = $derived(selected.start);
+	const end = $derived(selected.end);
+	const locked = $derived(segments.some((segment) => segment.layer.locked));
+	const matchingEasing = $derived(
+		segments.every(
+			(segment) => JSON.stringify(segment.start.easing) === JSON.stringify(start.easing)
+		)
+	);
 	let copied = $state<Easing | null>(null),
 		curvePreview = $state<{ x1: number; y1: number; x2: number; y2: number } | null>(null),
 		drag = $state<'first' | 'second' | null>(null);
@@ -20,9 +31,11 @@
 		curvePreview ?? (start.easing.type === 'bezier' ? start.easing : { x1: 0, y1: 0, x2: 1, y2: 1 })
 	);
 	const preset = $derived(
-		Object.entries(presets).find(
-			([, e]) => JSON.stringify(e) === JSON.stringify(start.easing)
-		)?.[0] ?? 'custom'
+		matchingEasing
+			? (Object.entries(presets).find(
+					([, e]) => JSON.stringify(e) === JSON.stringify(start.easing)
+				)?.[0] ?? 'custom')
+			: 'mixed'
 	);
 	const springPath = $derived(
 		start.easing.type === 'spring'
@@ -40,14 +53,13 @@
 					{
 						name: 'set_easing',
 						input: {
-							layerIds: [layer.id],
-							properties: [property],
-							keyframeIds: [start.id],
+							layerIds: [...new Set(segments.map((segment) => segment.layer.id))],
+							keyframeIds: segments.map((segment) => segment.start.id),
 							easing: JSON.parse(JSON.stringify(e))
 						}
 					}
 				],
-				'Changed animation easing',
+				segments.length === 1 ? 'Changed animation easing' : 'Changed selected animations easing',
 				'human',
 				expected
 			);
@@ -63,6 +75,27 @@
 				{ keyframeIds: [key.id], frames: Math.round(frame) - key.frame },
 				'Changed animation timing'
 			);
+		} catch (e) {
+			session.error = String(e);
+		}
+	}
+	function removeAnimation() {
+		try {
+			session.run(
+				'delete_keyframes',
+				{
+					keyframeIds: [
+						...new Set(segments.flatMap((segment) => [segment.start.id, segment.end.id]))
+					]
+				},
+				segments.length === 1 ? 'Deleted animation' : 'Deleted selected animations'
+			);
+			session.select(
+				[...new Set(segments.map((segment) => segment.layer.id))],
+				[],
+				[...new Set(segments.map((segment) => segment.property))]
+			);
+			session.error = '';
 		} catch (e) {
 			session.error = String(e);
 		}
@@ -89,7 +122,7 @@
 
 <section class="easing-inspector">
 	<div class="section-heading">
-		<span><Spline size={14} /> Animation easing</span>
+		<span><Spline size={14} /> Animation</span>
 		<div>
 			<Button
 				variant="ghost"
@@ -105,25 +138,42 @@
 				title="Paste easing"
 				disabled={!copied}
 				onclick={() => copied && apply(copied)}><ClipboardPaste /></Button
+			><Button
+				variant="ghost"
+				size="icon-xs"
+				class="delete-animation"
+				aria-label="Delete animation"
+				title="Delete animation"
+				disabled={locked}
+				onclick={removeAnimation}><Trash2 /></Button
 			>
 		</div>
 	</div>
-	<p>{property} <span>{end.frame - start.frame} frames</span></p>
-	<div class="segment-times">
-		<Timer size={13} /><NumericInput
-			label="Animation start frame"
-			value={start.frame}
-			min={0}
-			max={end.frame - 1}
-			oncommit={(v) => timing(start, v)}
-		/><ArrowRight size={13} /><NumericInput
-			label="Animation end frame"
-			value={end.frame}
-			min={start.frame + 1}
-			max={session.project.composition.durationFrames - 1}
-			oncommit={(v) => timing(end, v)}
-		/>
-	</div>
+	<p>
+		{segments.length === 1 ? property : `${segments.length} animations`}
+		<span
+			>{segments.length === 1
+				? `${end.frame - start.frame} frames`
+				: matchingEasing
+					? 'Shared easing'
+					: 'Mixed easing'}</span
+		>
+	</p>
+	{#if segments.length === 1}<div class="segment-times">
+			<Timer size={13} /><NumericInput
+				label="Animation start frame"
+				value={start.frame}
+				min={0}
+				max={end.frame - 1}
+				oncommit={(v) => timing(start, v)}
+			/><ArrowRight size={13} /><NumericInput
+				label="Animation end frame"
+				value={end.frame}
+				min={start.frame + 1}
+				max={session.project.composition.durationFrames - 1}
+				oncommit={(v) => timing(end, v)}
+			/>
+		</div>{/if}
 	<svg bind:this={graph} viewBox="0 0 240 160" class="curve" aria-label="Animation easing curve"
 		><path
 			class="grid"
@@ -203,7 +253,11 @@
 					/></label
 				>{/each}
 		</div>{/if}
-	<small>Changes apply to this animation segment immediately.</small>
+	<small
+		>Changes apply to {segments.length === 1
+			? 'this animation segment'
+			: 'all selected animation segments'} immediately.</small
+	>
 </section>
 
 <style>
@@ -230,6 +284,15 @@
 	.section-heading :global(button) {
 		border-radius: 5px;
 		color: #8d9bad;
+	}
+	.section-heading :global(.delete-animation) {
+		margin-left: 4px;
+		color: #f08d86;
+	}
+	.section-heading :global(.delete-animation:hover:not(:disabled)),
+	.section-heading :global(.delete-animation:focus-visible:not(:disabled)) {
+		background: #4a2529;
+		color: #ffc0ba;
 	}
 	.easing-inspector p {
 		display: flex;

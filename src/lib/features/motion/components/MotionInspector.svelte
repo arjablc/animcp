@@ -24,8 +24,26 @@
 	let { session }: { session: MotionSession } = $props();
 	let open = $state(true);
 	let inspectorScroll = $state<HTMLDivElement>();
+	const selectedSegments = $derived(
+		session.project.layers.flatMap((candidate) =>
+			Object.keys(candidate.tracks).flatMap((candidateProperty) =>
+				animationSegments(candidate, candidateProperty)
+					.filter(
+						(candidateSegment) =>
+							session.context.selectedKeyframeIds.includes(candidateSegment.start.id) &&
+							session.context.selectedKeyframeIds.includes(candidateSegment.end.id)
+					)
+					.map((candidateSegment) => ({
+						layer: candidate,
+						property: candidateProperty,
+						start: candidateSegment.start,
+						end: candidateSegment.end
+					}))
+			)
+		)
+	);
 	$effect(() => {
-		const id = segment?.id;
+		const id = selectedSegments.map((selectedSegment) => selectedSegment.start.id).join(',');
 		if (id) {
 			open = true;
 			tick().then(() => inspectorScroll?.scrollTo({ top: 0 }));
@@ -34,23 +52,15 @@
 	const layer = $derived(
 		session.project.layers.find((l) => l.id === session.context.selectedLayerIds[0])
 	);
-	const property = $derived(session.context.selectedProperties[0]);
-	const segment = $derived(
-		layer && property && layer.tracks[property]
-			? animationSegments(layer, property).find(
-					(s) =>
-						session.context.selectedKeyframeIds.length === 2 &&
-						session.context.selectedKeyframeIds.includes(s.start.id) &&
-						session.context.selectedKeyframeIds.includes(s.end.id)
-				)
-			: undefined
-	);
 	const selectedKeyLayers = $derived(
 		session.project.layers.filter((candidate) =>
 			Object.values(candidate.tracks).some((track) =>
 				track.keys.some((key) => session.context.selectedKeyframeIds.includes(key.id))
 			)
 		)
+	);
+	const hasOpenSubpaths = $derived(
+		layer?.type === 'path' && (layer.paths ?? []).some((path) => path.at(-1)?.type !== 'Z')
 	);
 	function safe(fn: () => unknown) {
 		try {
@@ -62,14 +72,6 @@
 	}
 	function change(changes: Record<string, unknown>) {
 		if (layer) safe(() => session.run('set_layer', { layerId: layer.id, changes }));
-	}
-	function deleteSelectedKeyframes() {
-		const keyframeIds = session.context.selectedKeyframeIds;
-		if (!keyframeIds.length) return;
-		safe(() => {
-			session.run('delete_keyframes', { keyframeIds }, 'Deleted selected keyframes');
-			session.select(session.context.selectedLayerIds, [], session.context.selectedProperties);
-		});
 	}
 	function applySelectedEasing(preset: string) {
 		const keyframeIds = session.context.selectedKeyframeIds;
@@ -134,12 +136,9 @@
 		>
 	</div>
 	{#if open}<div class="inspector-scroll" bind:this={inspectorScroll}>
-			{#if layer}{@const l = layer}{#if segment}<EasingInspector
+			{#if layer}{@const l = layer}{#if selectedSegments.length}<EasingInspector
 						{session}
-						layer={l}
-						{property}
-						start={segment.start}
-						end={segment.end}
+						segments={selectedSegments}
 					/>{/if}
 				<section>
 					<div class="name-row">
@@ -169,7 +168,7 @@
 					</div>
 					<h3>Transform <span>{l.type}</span></h3>
 					<div class="property-grid">
-						{#each ['positionX', 'positionY', 'width', 'height', 'scaleX', 'scaleY', 'rotation', 'opacity'] as prop}<PropertyField
+						{#each l.type === 'path' ? ['positionX', 'positionY', 'scaleX', 'scaleY', 'rotation', 'opacity'] : ['positionX', 'positionY', 'width', 'height', 'scaleX', 'scaleY', 'rotation', 'opacity'] as prop}<PropertyField
 								{session}
 								layer={l}
 								property={prop}
@@ -314,23 +313,22 @@
 							property="stroke"
 							label="Stroke color"
 						/><PropertyField {session} layer={l} property="strokeWidth" label="Stroke width" />
+					</section>{/if}{#if hasOpenSubpaths}<section>
+						<h3>Draw</h3>
+						<div class="property-grid">
+							<PropertyField {session} layer={l} property="drawStart" label="Start" />
+							<PropertyField {session} layer={l} property="drawEnd" label="End" />
+						</div>
+						<p class="hint">Animate Start or End to reveal, erase, or wipe this open path.</p>
 					</section>{/if}
 				<section>
-					<h3>Animation</h3>
-					{#if session.context.selectedKeyframeIds.length}<Button
-							variant="ghost"
-							size="sm"
-							class="text-action danger"
-							disabled={selectedKeyLayers.some((candidate) => candidate.locked)}
-							onclick={deleteSelectedKeyframes}
-							><Trash2 size={12} /> Delete selected keyframe{session.context.selectedKeyframeIds
-								.length === 1
-								? ''
-								: 's'}</Button
-						>{/if}
-					{#if session.context.selectedKeyframeIds.length > 1}<div class="bulk-easing">
+					<h3>Quick animation</h3>
+					{#if session.context.selectedKeyframeIds.length > 1 && !selectedSegments.length}<div
+							class="bulk-easing"
+						>
 							<span>{session.context.selectedKeyframeIds.length} selected keyframes</span>
-							<div><Button
+							<div>
+								<Button
 									variant="ghost"
 									size="xs"
 									disabled={selectedKeyLayers.some((candidate) => candidate.locked)}
@@ -345,7 +343,8 @@
 									size="xs"
 									disabled={selectedKeyLayers.some((candidate) => candidate.locked)}
 									onclick={() => applySelectedEasing('snappy')}>Snappy</Button
-								></div>
+								>
+							</div>
 						</div>{/if}
 					<Button
 						variant="ghost"

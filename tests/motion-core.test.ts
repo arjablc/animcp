@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	createProject,
 	createLayer,
+	copyPaths,
 	setGradient,
 	track,
 	uid,
@@ -12,7 +13,12 @@ import {
 	type Project
 } from '../src/lib/features/motion/model';
 import { transact, findElements } from '../src/lib/features/motion/commands';
-import { ancestorOpacity, ancestorTransform, effectivelyVisible, exportSvg } from '../src/lib/features/motion/render';
+import {
+	ancestorOpacity,
+	ancestorTransform,
+	effectivelyVisible,
+	exportSvg
+} from '../src/lib/features/motion/render';
 const key = (frame: number, value: number, easing = presets.linear): Key => ({
 	id: uid(),
 	frame,
@@ -32,6 +38,90 @@ function fixture() {
 const run = (p: Project, name: string, input: Record<string, unknown>) =>
 	transact(p, [{ name, input }]).project;
 describe('motion tracks', () => {
+	it('creates static multi-subpath layers with animatable draw tracks', () => {
+		const p = createProject();
+		const path = createLayer('path', 'Signature');
+		path.paths = [
+			[
+				{ type: 'M', x: 0, y: 0 },
+				{ type: 'L', x: 90, y: 20 }
+			],
+			[{ type: 'M', x: 10, y: 50 }, { type: 'L', x: 70, y: 50 }, { type: 'Z' }]
+		];
+		path.tracks.drawEnd.keys = [key(0, 0), key(20, 1)];
+		p.layers.push(path);
+		expect(validateProject(p).layers[0].paths).toHaveLength(2);
+		const svg = exportSvg(p, 10);
+		expect(svg).toContain('stroke-dasharray="0.5 1"');
+		expect(svg).toContain('M 10 50 L 70 50 Z');
+	});
+	it('hides a fully drawn-away open path instead of leaving a round-cap dot', () => {
+		const p = createProject();
+		const path = createLayer('path', 'Wipe away');
+		path.paths = [
+			[
+				{ type: 'M', x: 0, y: 0 },
+				{ type: 'L', x: 90, y: 20 }
+			]
+		];
+		path.tracks.drawStart.defaultValue = 1;
+		path.tracks.drawEnd.defaultValue = 1;
+		p.layers.push(path);
+		expect(exportSvg(p, 0)).not.toContain('stroke-dasharray=');
+	});
+	it('rejects malformed path geometry and paths on ordinary layers', () => {
+		const p = createProject();
+		const path = createLayer('path');
+		path.paths = [
+			[
+				{ type: 'L', x: 0, y: 0 },
+				{ type: 'L', x: 1, y: 1 }
+			]
+		] as never;
+		p.layers.push(path);
+		expect(() => validateProject(p)).toThrow(/start/);
+		path.paths = [
+			[
+				{ type: 'M', x: 0, y: 0 },
+				{ type: 'L', x: 1, y: 1 }
+			]
+		];
+		path.type = 'rectangle';
+		expect(() => validateProject(p)).toThrow(/Only path/);
+	});
+	it('edits static path points through an undoable command', () => {
+		const p = createProject();
+		const path = createLayer('path');
+		path.paths = [
+			[
+				{ type: 'M', x: 0, y: 0 },
+				{ type: 'L', x: 20, y: 20 }
+			]
+		];
+		p.layers.push(path);
+		const next = run(p, 'set_path', {
+			layerId: path.id,
+			paths: [
+				[
+					{ type: 'M', x: 0, y: 0 },
+					{ type: 'C', x1: 4, y1: 18, x2: 16, y2: 2, x: 20, y: 20 }
+				]
+			]
+		});
+		expect(next.layers[0].paths?.[0][1]).toMatchObject({ type: 'C', x1: 4, y2: 2 });
+		expect(() => run(next, 'set_path', { layerId: path.id, paths: [] })).toThrow(/path collection/);
+	});
+	it('copies reactive path-like proxies into plain geometry', () => {
+		const source = [
+			[
+				{ type: 'M' as const, x: 0, y: 0 },
+				{ type: 'C' as const, x1: 2, y1: 3, x2: 7, y2: 8, x: 10, y: 10 }
+			]
+		];
+		const proxy = new Proxy(source, {});
+		expect(() => structuredClone(proxy)).toThrow();
+		expect(copyPaths(proxy)).toEqual(source);
+	});
 	it('evaluates boundaries, hold, and asymmetric easing', () => {
 		const t = track(12);
 		expect(evaluate(t, 0)).toBe(12);
@@ -232,7 +322,13 @@ describe('layer groups', () => {
 			frame: 30,
 			value: 0.2
 		});
-		expect(ancestorOpacity(groupOpacity, groupOpacity.layers.find((layer) => layer.id === child.id)!, 30)).toBe(1);
+		expect(
+			ancestorOpacity(
+				groupOpacity,
+				groupOpacity.layers.find((layer) => layer.id === child.id)!,
+				30
+			)
+		).toBe(1);
 	});
 	it('honors group visibility and prevents invalid parent hierarchies', () => {
 		const p = createProject();

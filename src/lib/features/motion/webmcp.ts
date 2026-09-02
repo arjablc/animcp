@@ -37,6 +37,26 @@ const obj = (properties: Record<string, Schema>, required: string[] = []): Schem
 });
 const en = (...values: string[]): Schema => ({ type: 'string', enum: values });
 const range = obj({ startFrame: integer, endFrame: integer }, ['startFrame', 'endFrame']);
+const pathCommand: Schema = obj({
+	type: en('M', 'L', 'C', 'Z'),
+	x: num,
+	y: num,
+	x1: num,
+	y1: num,
+	x2: num,
+	y2: num
+});
+const paths: Schema = {
+	type: 'array',
+	items: { type: 'array', items: pathCommand, maxItems: 10000 },
+	maxItems: 200
+};
+const pathBounds = obj({ positionX: num, positionY: num, width: num, height: num }, [
+	'positionX',
+	'positionY',
+	'width',
+	'height'
+]);
 const lock = obj(
 	Object.fromEntries(
 		['startFrame', 'endFrame', 'duration', 'startValue', 'endValue', 'easing'].map((n) => [n, bool])
@@ -52,7 +72,13 @@ const ease: Schema = {
 			'x2',
 			'y2'
 		]),
-		obj({ type: en('spring'), mass: num, stiffness: num, damping: num, velocity: num }, ['type', 'mass', 'stiffness', 'damping', 'velocity'])
+		obj({ type: en('spring'), mass: num, stiffness: num, damping: num, velocity: num }, [
+			'type',
+			'mass',
+			'stiffness',
+			'damping',
+			'velocity'
+		])
 	]
 };
 const val: Schema = { anyOf: [num, str] };
@@ -68,14 +94,17 @@ const motion: Record<string, Schema> = {
 	}),
 	create_layer: obj(
 		{
-			type: en('rectangle', 'ellipse', 'text', 'svg', 'png', 'group'),
+			type: en('rectangle', 'ellipse', 'text', 'path', 'svg', 'png', 'group'),
 			name: str,
 			text: str,
 			fontFamily: str,
-			assetId: str
+			assetId: str,
+			paths,
+			bounds: pathBounds
 		},
 		['type']
 	),
+	set_path: obj({ layerId: str, paths }, ['layerId', 'paths']),
 	duplicate_layer: obj({ layerId: str }, ['layerId']),
 	group_layers: obj({ layerIds: ids, name: str }, ['layerIds']),
 	delete_layer: obj({ layerId: str }, ['layerId']),

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		Move,
+		PenTool,
 		Square,
 		Circle,
 		Type,
@@ -28,7 +29,9 @@
 		onImport,
 		onExport,
 		onUndo,
-		onRedo
+		onRedo,
+		onToolChange,
+		activeTool
 	}: {
 		session: MotionSession;
 		busy: boolean;
@@ -38,6 +41,8 @@
 		onExport: (format: ExportFormat) => void;
 		onUndo: () => void;
 		onRedo: () => void;
+		onToolChange: (tool: 'move' | 'pen') => void;
+		activeTool: 'move' | 'pen';
 	} = $props();
 
 	const webmcpTools = $derived(createMotionTools(session));
@@ -47,12 +52,20 @@
 	<Button
 		variant="ghost"
 		size="icon-sm"
-		class="editor-icon tool-active"
+		class={`editor-icon ${activeTool === 'move' ? 'tool-active' : ''}`}
 		aria-label="Move tool"
 		title="Move / select · drag layers on canvas"
-		onclick={() => session.select(session.context.selectedLayerIds)}><Move /></Button
+		onclick={() => onToolChange('move')}><Move /></Button
 	>
 	<span class="tool-divider"></span>
+	<Button
+		variant="ghost"
+		size="icon-sm"
+		class={`editor-icon ${activeTool === 'pen' ? 'tool-active' : ''}`}
+		aria-label="Pen tool"
+		title="Pen · click points, drag to curve, Enter finishes"
+		onclick={() => onToolChange('pen')}><PenTool /></Button
+	>
 	<Button
 		variant="ghost"
 		size="icon-sm"
