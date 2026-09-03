@@ -1,13 +1,12 @@
 <script lang="ts">
-	import { cn, type WithElementRef } from '$lib/utils.js';
 	import type { HTMLInputAttributes, HTMLInputTypeAttribute } from 'svelte/elements';
 
 	type InputType = Exclude<HTMLInputTypeAttribute, 'file'>;
 
-	type Props = WithElementRef<
-		Omit<HTMLInputAttributes, 'type'> &
-			({ type: 'file'; files?: FileList } | { type?: InputType; files?: undefined })
-	>;
+	type Props = Omit<HTMLInputAttributes, 'type'> &
+		({ type: 'file'; files?: FileList } | { type?: InputType; files?: undefined }) & {
+			ref?: HTMLInputElement | null;
+		};
 
 	let {
 		ref = $bindable(null),
@@ -24,10 +23,7 @@
 	<input
 		bind:this={ref}
 		data-slot={dataSlot}
-		class={cn(
-			'border-b-input focus-visible:border-b-ring aria-invalid:border-b-destructive dark:aria-invalid:border-b-destructive/50 file:text-foreground placeholder:text-muted-foreground h-10 w-full min-w-0 border border-transparent bg-transparent px-0 py-1 text-base transition-[color,border-color] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
-			className
-		)}
+		class={`h-10 w-full min-w-0 border border-transparent border-b-input bg-transparent px-0 py-1 text-base transition-[color,border-color] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-b-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-b-destructive md:text-sm dark:aria-invalid:border-b-destructive/50 ${className ?? ''}`}
 		type="file"
 		bind:files
 		bind:value
@@ -37,10 +33,7 @@
 	<input
 		bind:this={ref}
 		data-slot={dataSlot}
-		class={cn(
-			'border-b-input focus-visible:border-b-ring aria-invalid:border-b-destructive dark:aria-invalid:border-b-destructive/50 file:text-foreground placeholder:text-muted-foreground h-10 w-full min-w-0 border border-transparent bg-transparent px-0 py-1 text-base transition-[color,border-color] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
-			className
-		)}
+		class={`h-10 w-full min-w-0 border border-transparent border-b-input bg-transparent px-0 py-1 text-base transition-[color,border-color] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-b-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-b-destructive md:text-sm dark:aria-invalid:border-b-destructive/50 ${className ?? ''}`}
 		{type}
 		bind:value
 		{...restProps}

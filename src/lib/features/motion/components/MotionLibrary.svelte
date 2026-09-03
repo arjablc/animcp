@@ -1,15 +1,24 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { listMotion, saveMotion, deleteMotion } from '../storage';
 	import { importNative } from '../assets';
-	import { uid } from '../model';
+	import { createProject, uid } from '../model';
 	import { migrateVector } from '../migrate';
 	import { templates } from '../templates';
-	let projects = $state<Awaited<ReturnType<typeof listMotion>>>([]),
-		error = $state(''),
-		busy = $state(false);
+
+	let projects = $state<Awaited<ReturnType<typeof listMotion>>>([]);
+	let error = $state('');
+	let busy = $state(false);
+	let creating = $state(false);
+	let name = $state('Untitled motion');
+	let width = $state(960);
+	let height = $state(540);
+	let fps = $state(30);
+	let background = $state('#101722');
 	let picker: HTMLInputElement;
+
 	async function refresh() {
 		try {
 			projects = await listMotion();
@@ -32,7 +41,7 @@
 			p.revision = 0;
 			p.updatedAt = new Date().toISOString();
 			await saveMotion(p);
-			await goto(`/motion/${p.id}`);
+			await goto(resolve('/motion/[id]', { id: p.id }));
 		} catch (e) {
 			error = String(e);
 		} finally {
@@ -40,8 +49,26 @@
 			picker.value = '';
 		}
 	}
-	async function remove(id: string, name: string) {
-		if (!confirm(`Delete “${name}” from this device? Export a backup first.`)) return;
+	async function createBlank() {
+		busy = true;
+		error = '';
+		try {
+			const p = createProject(name.trim() || 'Untitled motion', {
+				width,
+				height,
+				fps,
+				background
+			});
+			await saveMotion(p);
+			await goto(resolve('/motion/[id]', { id: p.id }));
+		} catch (e) {
+			error = String(e);
+		} finally {
+			busy = false;
+		}
+	}
+	async function remove(id: string, projectName: string) {
+		if (!confirm(`Delete “${projectName}” from this device? Export a backup first.`)) return;
 		try {
 			await deleteMotion(id);
 			await refresh();
@@ -52,58 +79,85 @@
 </script>
 
 <svelte:head
-	><title>AniMCP — Make your next move</title><meta
+	><title>Projects - animcp</title><meta
 		name="description"
-		content="A motion graphics timeline for humans and agents. Animate properties, import SVG and PNG, and surgically revise motion through WebMCP."
+		content="Create, import, and return to motion compositions stored on this device."
 	/></svelte:head
 >
+
 <main>
 	<nav>
-		<a class="brand" href="/">ani<span>MCP</span><small>MOTION STUDIO</small></a>
+		<a class="brand" href={resolve('/')}>ani<span>MCP</span><small>MOTION STUDIO</small></a><a
+			class="back"
+			href={resolve('/')}>← Home</a
+		>
 	</nav>
-	<section class="hero">
-		<div class="copy">
-			<h1>Make your next <em>move.</em></h1>
-			<p>
-				A timeline you and your agent can work on together. Create the composition. Shape the
-				rhythm. Keep control.
-			</p>
-			<div class="actions">
-				<a class="primary" href="/motion/new">＋ New composition</a>
-			</div>
-		</div>
-		<div class="preview">
-			<div class="preview-label">PRODUCT CARDS <span>00:01 / 00:05</span></div>
-			<h2>Ideas into motion.</h2>
-			<div class="cards">
-				<div>Design<span>01</span></div>
-				<div>Animate<span>02</span></div>
-				<div>Ship<span>03</span></div>
-			</div>
-			<div class="mini-timeline">Title <i>◆━━━━◆</i></div>
-			<div class="mini-timeline">Design <i style="padding-left:25px">◆━━━━◆</i></div>
-			<div class="mini-timeline">Animate <i style="padding-left:50px">◆━━━━◆</i></div>
-			<div class="mini-timeline">Ship <i style="padding-left:75px">◆━━━━◆</i></div>
-			<div class="agent-note">✦ “Stagger these four frames apart.”</div>
-		</div>
+	<section class="project-actions">
+		<button class="primary" onclick={() => (creating = !creating)} aria-expanded={creating}
+			>＋ New project</button
+		>
 	</section>
-	<section class="templates" aria-label="Starter templates">
-		<div class="heading"><h2>Start with motion. Make it yours.</h2></div>
-		<div class="template-grid">
-			{#each templates as template}<a href={`/motion/template-${template.id}`}
-					><strong>{template.name} ↗</strong>
-					<p>{template.description}</p></a
-				>{/each}
-		</div>
-	</section>
+	{#if creating}
+		<section class="create-panel" aria-labelledby="new-project-title">
+			<div>
+				<h2 id="new-project-title">Set the stage.</h2>
+				<p>These settings become the foundation of your new composition.</p>
+			</div>
+			<form
+				onsubmit={(e) => {
+					e.preventDefault();
+					void createBlank();
+				}}
+			>
+				<label class="wide">Project name<input bind:value={name} maxlength="180" /></label>
+				<label
+					>Canvas width<input
+						type="number"
+						bind:value={width}
+						min="240"
+						max="1920"
+						step="1"
+						required
+					/></label
+				>
+				<label
+					>Canvas height<input
+						type="number"
+						bind:value={height}
+						min="240"
+						max="1920"
+						step="1"
+						required
+					/></label
+				>
+				<label
+					>Frame rate<select bind:value={fps}
+						>{#each [12, 15, 24, 30, 60] as rate (rate)}<option value={rate}>{rate} fps</option
+							>{/each}</select
+					></label
+				>
+				<label
+					>Canvas color<span class="color-input"
+						><input type="color" bind:value={background} /><input
+							aria-label="Canvas color hex"
+							bind:value={background}
+							maxlength="7"
+							spellcheck="false"
+						/></span
+					></label
+				>
+				<div class="form-actions">
+					<span>{width} × {height} · {fps} fps</span><button class="primary" disabled={busy}
+						>{busy ? 'Creating…' : 'Create project →'}</button
+					>
+				</div>
+			</form>
+		</section>
+	{/if}
 	<section class="projects">
 		<div class="heading">
 			<div>
 				<h2>Your compositions <span>{projects.length}</span></h2>
-				<p>
-					Saved on this device. Ready for the next revision. v1 imports create a separate motion
-					copy.
-				</p>
 			</div>
 			<button disabled={busy} onclick={() => picker.click()}>↥ Import .animcp.json</button><input
 				bind:this={picker}
@@ -115,9 +169,11 @@
 		</div>
 		{#if error}<p role="alert" class="error">{error}</p>{/if}
 		<div class="project-grid">
-			<a class="new" href="/motion/new"><span>＋</span>Start with a blank canvas</a
-			>{#each projects as p}<article>
-					<a href={`/motion/${p.id}`}
+			{#if projects.length === 0}<button class="new" onclick={() => (creating = true)}
+					><span>＋</span>Your first composition starts here</button
+				>{/if}
+			{#each projects as p (p.id)}<article>
+					<a href={resolve('/motion/[id]', { id: p.id })}
 						><div class="thumb" style:background={p.composition.background}>
 							<b>{String(p.layerCount).padStart(2, '0')}</b><small>MOTION LAYERS</small>
 						</div>
@@ -125,6 +181,20 @@
 						<p>{p.composition.width} × {p.composition.height} · {p.composition.fps} fps</p></a
 					><button aria-label={`Delete ${p.name}`} onclick={() => remove(p.id, p.name)}>×</button>
 				</article>{/each}
+		</div>
+	</section>
+	<section class="templates" aria-label="Starter templates">
+		<div class="heading">
+			<div>
+				<h2>Templates</h2>
+			</div>
+		</div>
+		<div class="template-grid">
+			{#each templates as template (template.id)}<a
+					href={resolve('/motion/[id]', { id: `template-${template.id}` })}
+					><strong>{template.name} ↗</strong>
+					<p>{template.description}</p></a
+				>{/each}
 		</div>
 	</section>
 	<footer>
@@ -135,50 +205,17 @@
 </main>
 
 <style>
-	.templates {
-		padding-bottom: 35px;
-	}
-	.template-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-		gap: 0 28px;
-	}
-	.template-grid a {
-		padding: 18px 0;
-	}
-	.template-grid strong {
-		font-size: 12px;
-		color: var(--paper);
-	}
-	.template-grid p {
-		font-size: var(--type-label);
-		color: var(--muted);
-		line-height: 1.7;
-		margin-top: 10px;
-	}
 	:global(body) {
 		margin: 0;
 	}
 	main {
 		min-height: 100vh;
-		background: #0d1522;
+		background: var(--ink);
 		color: var(--paper);
 		padding: 0 max(28px, calc((100vw - 1220px) / 2));
 		font-family: var(--sans);
-		--landing-accent: #8fcad8;
-		--landing-panel: #162337;
-		--landing-raised: #1b2a3e;
-		--landing-line: #31445a;
-	}
-	nav {
-		height: 92px;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-	a {
-		text-decoration: none;
-		color: inherit;
+		--landing-accent: var(--acid);
+		--landing-line: var(--line);
 	}
 	.brand {
 		font-size: 24px;
@@ -189,152 +226,156 @@
 		color: var(--landing-accent);
 	}
 	.brand small {
-		font: 500 var(--type-meta) / 1 var(--mono);
+		font: 500 var(--type-meta)/1 var(--mono);
 		color: var(--muted);
 		letter-spacing: 2px;
 		margin-left: 22px;
 	}
-	.hero {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: clamp(48px, 7vw, 88px);
+	nav {
+		height: 92px;
+		display: flex;
+		justify-content: space-between;
 		align-items: center;
-		padding: 92px 0 104px;
 	}
-	h1 {
-		max-width: 12ch;
-		font-size: clamp(3rem, 5vw, 4.25rem);
-		font-weight: 700;
-		letter-spacing: -0.03em;
-		line-height: 1.06;
-		margin: 0 0 28px;
+	.back {
+		color: var(--muted);
+		font-size: 12px;
+		transition: color 160ms ease;
 	}
-	h1 em {
-		font-style: normal;
+	.back:hover {
+		color: var(--landing-accent);
+	}
+	a {
+		text-decoration: none;
 		color: inherit;
 	}
-	.copy p {
-		max-width: 58ch;
-		font-size: var(--type-body);
-		color: var(--muted);
-		line-height: var(--leading-body);
-	}
-	.actions {
+	.project-actions {
 		display: flex;
-		gap: 12px;
-		margin: 28px 0 22px;
+		justify-content: flex-end;
+		padding: 32px 0;
 	}
-	.primary,
-	button {
+	button,
+	.primary {
 		border-radius: 6px;
 		padding: 12px 16px;
 		font-size: var(--type-control);
 		border: 1px solid var(--landing-line);
+		background: transparent;
+		color: var(--text-muted);
 	}
 	.primary {
 		background: var(--landing-accent);
 		color: var(--acid-ink);
 		border-color: var(--landing-accent);
-		font-weight: 600;
+		font-weight: 700;
+		transition:
+			transform 160ms ease,
+			box-shadow 160ms ease,
+			background 160ms ease;
 	}
-	button {
-		background: transparent;
-		color: #c7d3e0;
+	.primary:hover:not(:disabled) {
+		transform: translateY(-2px);
+		box-shadow: 0 10px 22px #0005;
 	}
-	.preview {
-		background: var(--landing-panel);
-		padding: 28px;
-		border: 1px solid var(--landing-line);
-		border-radius: 12px;
+	button:disabled {
+		cursor: not-allowed;
+		opacity: 0.55;
 	}
-	.preview-label {
-		display: flex;
-		justify-content: space-between;
-		font: 500 var(--type-meta) / 1 var(--mono);
+	.create-panel {
+		display: grid;
+		grid-template-columns: 0.75fr 1.25fr;
+		gap: 54px;
+		padding: 38px 0;
+	}
+	.create-panel h2 {
+		font-size: 28px;
+		margin: 0 0 10px;
+		font-family: var(--display);
+		font-weight: 700;
+		letter-spacing: -0.03em;
+	}
+	.create-panel p {
+		margin: 0;
 		color: var(--muted);
-		letter-spacing: 1px;
-	}
-	.preview h2 {
-		font-size: 24px;
-		font-weight: 600;
-		letter-spacing: -0.02em;
-		margin: 30px 0 20px;
-	}
-	.cards {
-		display: flex;
-		gap: 10px;
-		margin-bottom: 28px;
-	}
-	.cards > div {
-		flex: 1;
-		border-radius: 8px;
-		background: #20344c;
-		height: 100px;
-		padding: 14px;
-		color: var(--paper);
-		font-weight: 600;
-		display: flex;
-		flex-direction: column;
-		justify-content: space-between;
 		font-size: 13px;
+		line-height: 1.6;
 	}
-	.cards > div:nth-child(2) {
-		background: #243a52;
+	form {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 16px;
 	}
-	.cards > div:nth-child(3) {
-		background: #293f57;
+	label {
+		display: grid;
+		gap: 8px;
+		color: var(--text-muted);
+		font-size: 11px;
+		font-weight: 700;
 	}
-	.cards span {
-		font: 400 var(--type-meta) / 1 var(--mono);
-		opacity: 0.6;
+	label.wide,
+	.form-actions {
+		grid-column: 1/-1;
 	}
-	.mini-timeline {
-		display: flex;
-		color: var(--muted);
-		font: 400 var(--type-meta) / 1.4 var(--mono);
-		align-items: center;
-		margin: 10px 0;
-		padding-bottom: 7px;
-	}
-	.mini-timeline i {
-		font-style: normal;
-		color: #789bb9;
-		margin-left: auto;
-		width: 60%;
-		box-sizing: border-box;
-	}
-	.agent-note {
-		margin-top: 22px;
-		padding: 12px;
+	input,
+	select {
+		width: 100%;
 		border: 1px solid var(--landing-line);
-		background: var(--landing-raised);
 		border-radius: 6px;
-		font-size: var(--type-label);
+		background: var(--surface-timeline);
 		color: var(--paper);
+		padding: 11px;
+		transition:
+			border-color 160ms ease,
+			box-shadow 160ms ease;
 	}
-	.projects {
-		padding: 30px 0 65px;
+	input:focus,
+	select:focus {
+		border-color: var(--landing-accent);
+		box-shadow: 0 0 0 3px var(--selection-fill);
+		outline: none;
+	}
+	.color-input {
+		display: grid;
+		grid-template-columns: 44px 1fr;
+		gap: 8px;
+	}
+	.color-input input[type='color'] {
+		padding: 3px;
+		height: 42px;
+	}
+	.form-actions {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-top: 6px;
+		color: var(--muted);
+		font: 11px/1 var(--mono);
+	}
+	.projects,
+	.templates {
+		padding: 48px 0 65px;
+	}
+	.templates {
+		padding-top: 8px;
 	}
 	.heading {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		gap: 24px;
 		margin-bottom: 24px;
 	}
-	h2 {
+	.heading h2 {
 		font-size: 18px;
-		margin: 0;
+		margin: 0 0 8px;
+		font-family: var(--display);
+		font-weight: 600;
+		letter-spacing: -0.02em;
 	}
 	.heading h2 span {
-		font: 500 var(--type-label) / 1 var(--mono);
+		font: 500 var(--type-label)/1 var(--mono);
 		color: var(--muted);
 		margin-left: 10px;
-	}
-	.heading p {
-		max-width: 65ch;
-		color: var(--muted);
-		font-size: var(--type-control);
-		line-height: var(--leading-compact);
 	}
 	.project-grid {
 		display: grid;
@@ -352,18 +393,36 @@
 		font-size: 12px;
 		color: var(--paper);
 		gap: 20px;
+		background: transparent;
+		width: 100%;
+		transition:
+			border-color 160ms ease,
+			background 160ms ease;
+	}
+	.new:hover {
+		border-color: var(--landing-accent);
+		background: var(--panel);
 	}
 	.new > span {
 		font-size: 35px;
 		color: var(--muted);
 	}
 	article {
-		border: 1px solid var(--line);
+		border: 1px solid var(--landing-line);
 		border-radius: 8px;
 		overflow: hidden;
 		position: relative;
+		transition:
+			border-color 160ms ease,
+			transform 160ms ease,
+			background 160ms ease;
 	}
-	article .thumb {
+	article:hover {
+		border-color: var(--info);
+		background: var(--panel);
+		transform: translateY(-2px);
+	}
+	.thumb {
 		height: 145px;
 		padding: 22px;
 		box-sizing: border-box;
@@ -374,7 +433,7 @@
 	}
 	.thumb small {
 		display: block;
-		font: 500 var(--type-meta) / 1 var(--mono);
+		font: 500 var(--type-meta)/1 var(--mono);
 		color: var(--muted);
 		margin-top: 6px;
 		letter-spacing: 2px;
@@ -384,7 +443,7 @@
 		margin: 16px 16px 6px;
 	}
 	article p {
-		font: 400 var(--type-meta) / 1.4 var(--mono);
+		font: 400 var(--type-meta)/1.4 var(--mono);
 		color: var(--muted);
 		margin: 0 16px 18px;
 	}
@@ -395,47 +454,68 @@
 		border: 0;
 		background: transparent;
 		padding: 5px;
-		cursor: pointer;
+		color: var(--muted);
+		transition: color 160ms ease;
+	}
+	article > button:hover {
+		color: var(--coral);
 	}
 	.error {
-		color: #ffd0ab;
+		color: var(--warning);
+	}
+	.template-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+		gap: 0 28px;
+	}
+	.template-grid a {
+		padding: 18px 0;
+		transition: color 160ms ease;
+	}
+	.template-grid a:hover strong {
+		color: var(--landing-accent);
+	}
+	.template-grid strong {
+		font-size: 12px;
+		color: var(--paper);
+	}
+	.template-grid p {
+		font-size: var(--type-label);
+		color: var(--muted);
+		line-height: 1.7;
+		margin-top: 10px;
 	}
 	footer {
 		padding: 26px 0;
 		display: flex;
 		gap: 25px;
-		font: 500 var(--type-meta) / 1.4 var(--mono);
+		font: 500 var(--type-meta)/1.4 var(--mono);
 		color: var(--muted);
 	}
 	footer span:first-child {
 		flex: 1;
 	}
 	@media (max-width: 850px) {
-		.hero {
+		.create-panel {
 			grid-template-columns: 1fr;
-			gap: 40px;
-			padding: 64px 0 72px;
+			gap: 34px;
+			padding: 56px 0;
 		}
-		.preview {
-			max-width: 500px;
+		.project-actions {
+			padding: 24px 0;
 		}
 		.brand small {
 			display: none;
 		}
-	}
-	@media (prefers-reduced-motion: no-preference) {
-		.preview {
-			animation: settle 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+		form {
+			grid-template-columns: 1fr;
 		}
-		@keyframes settle {
-			from {
-				transform: translateY(12px);
-				filter: blur(3px);
-			}
-			to {
-				transform: translateY(0);
-				filter: blur(0);
-			}
+		.form-actions {
+			grid-column: auto;
+		}
+		.heading {
+			align-items: start;
+			flex-direction: column;
 		}
 	}
 </style>

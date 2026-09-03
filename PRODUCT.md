@@ -42,7 +42,7 @@ Users work in a timeline editor with layered text, shapes, SVG, and PNG assets. 
 - Existing product interface and factual copy: `src/lib/features/motion/components/MotionLibrary.svelte`.
 - WebMCP tool implementation: `src/lib/features/motion/webmcp.ts`.
 - Local project persistence: `src/lib/features/motion/storage.ts`.
-- Existing assets: `src/lib/assets/studio.png`, `static/og.svg`, and `static/favicon.svg`.
+- Existing assets: `static/og.svg` and `static/favicon.svg`.
 - No customer testimonials, pricing, case studies, benchmarks, or external proof are present in the repository; future work must not fabricate them.
 
 ## Product Principles

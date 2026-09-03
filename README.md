@@ -1,42 +1,69 @@
-# sv
+# AniMCP
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+AniMCP is a browser-based motion graphics editor. Create a composition, add layers, animate properties with keyframes, and export the result.
 
-## Creating a project
+Projects stay in the browser's IndexedDB storage on the current device. AniMCP has no sign-in, cloud storage, or project sharing.
 
-If you're seeing this, you've probably already done this step. Congrats!
+## What It Supports
 
-```sh
-# create a new project
-npx sv create my-app
+- Rectangle, ellipse, text, SVG, and PNG layers
+- Position, size, rotation, opacity, scale, color, gradient, stroke, and timing controls
+- Linear, hold, Bezier, and spring easing
+- Layer locks, undo, redo, and revision checks for edits
+- Starter templates and blank projects
+- Import of `.animcp.json` project files
+- Export to `.animcp.json`, SVG, Lottie JSON, and, in supported browsers, MP4
+- Google Fonts for text layers
+- WebMCP tools so a browser agent can inspect and edit the open composition
+
+## Run Locally
+
+Install dependencies:
+
+```bash
+pnpm install
 ```
 
-To recreate this project with the same configuration:
+Start the development server:
 
-```sh
-# recreate this project
-pnpm dlx sv@0.17.0 create --template minimal --types ts --add prettier tailwindcss="plugins:typography,forms" eslint --install pnpm animcp-web
+```bash
+pnpm dev
 ```
 
-## Developing
+Open the URL printed by Vite. Create a project from `/projects`.
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+## Commands
 
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+```bash
+pnpm dev       # Start the development server
+pnpm test      # Run the Vitest tests
+pnpm check     # Check Svelte and TypeScript
+pnpm lint      # Check formatting and ESLint rules
+pnpm build     # Create a production build
+pnpm preview   # Build, then run the Cloudflare Worker locally
+pnpm deploy    # Build and deploy with Wrangler
 ```
 
-## Building
+## Use The Editor
 
-To create a production version of your app:
+1. Open `/projects`.
+2. Create a blank project, import an `.animcp.json` file, or open a template.
+3. Add layers from the editor toolbar.
+4. Select a layer and change its properties in the inspector.
+5. Move the playhead, add keyframes, then adjust the property at another frame.
+6. Use the export menu to download the project or rendered output.
 
-```sh
-npm run build
-```
+Native `.animcp.json` export is the only format that keeps the full editable project. SVG exports the current frame. Lottie and MP4 exports may not preserve every editor feature. MP4 export requires a browser with H.264 recording and canvas video capture support.
 
-You can preview the production build with `npm run preview`.
+## Storage And Browser Notes
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+- Clearing this site's browser data deletes locally saved projects.
+- Export `.animcp.json` files before clearing browser data or moving to another device.
+- Imported SVG and PNG files are embedded in the project.
+- An SVG export with a selected Google Font keeps live text. The viewing device needs that font to display it as intended.
+
+## Development Notes
+
+The active editor code is in `src/lib/features/motion`. The current project model is version 2. The older vector model in `src/lib/features/animation` remains for import, validation, and export compatibility.
+
+See [CODEBASE_GUIDE.md](CODEBASE_GUIDE.md) for the route, state, rendering, persistence, and test layout.

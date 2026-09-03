@@ -11,7 +11,11 @@ export const clamp = (n: number) => Math.max(0, Math.min(1, n));
 export function transform(l: Layer, frame: number) {
 	return transformWithValues(l, frame);
 }
-function transformWithValues(l: Layer, frame: number, values: Partial<Record<string, number>> = {}) {
+function transformWithValues(
+	l: Layer,
+	frame: number,
+	values: Partial<Record<string, number>> = {}
+) {
 	const n = (property: string) => values[property] ?? value(l, property, frame);
 	const w = Math.max(0.001, n('width')),
 		h = Math.max(0.001, n('height'));
@@ -83,6 +87,22 @@ export function effectivelyVisible(p: Project, layer: Layer) {
 	}
 	return true;
 }
+
+function pathD(path: NonNullable<Layer['paths']>[number]) {
+	return path
+		.map((command) =>
+			command.type === 'Z'
+				? 'Z'
+				: command.type === 'C'
+					? `C ${command.x1} ${command.y1} ${command.x2} ${command.y2} ${command.x} ${command.y}`
+					: `${command.type} ${command.x} ${command.y}`
+		)
+		.join(' ');
+}
+
+function isClosed(path: NonNullable<Layer['paths']>[number]) {
+	return path.at(-1)?.type === 'Z';
+}
 export function layerSvg(p: Project, l: Layer, f: number): string {
 	const n = (key: string) => value(l, key, f),
 		w = Math.max(0.001, n('width')),
@@ -122,13 +142,29 @@ export function layerSvg(p: Project, l: Layer, f: number): string {
 		content = `<text x="${l.textAlign === 'left' ? 0 : l.textAlign === 'center' ? w / 2 : w}" text-anchor="${l.textAlign === 'left' ? 'start' : l.textAlign === 'center' ? 'middle' : 'end'}" font-family="${xml(l.fontFamily)}" font-size="${l.fontSize}" font-weight="${l.fontWeight}" font-style="${l.fontStyle}" letter-spacing="${l.letterSpacing}" ${style}>${l.text
 			.split('\n')
 			.map(
-				(line, index) => `<tspan x="${l.textAlign === 'left' ? 0 : l.textAlign === 'center' ? w / 2 : w}" y="${l.fontSize * (1 + index * l.lineHeight)}">${xml(line)}</tspan>`
+				(line, index) =>
+					`<tspan x="${l.textAlign === 'left' ? 0 : l.textAlign === 'center' ? w / 2 : w}" y="${l.fontSize * (1 + index * l.lineHeight)}">${xml(line)}</tspan>`
 			)
 			.join('')}</text>`;
 	if (l.type === 'svg' || l.type === 'png') {
 		const a = p.assets.find((a) => a.id === l.assetId);
 		if (a)
 			content = `<image href="${xml(a.data)}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet"/>`;
+	}
+	if (l.type === 'path') {
+		const start = clamp(n('drawStart')),
+			end = Math.max(start, clamp(n('drawEnd'))),
+			visibleLength = end - start,
+			draw = `pathLength="1" stroke-dasharray="${visibleLength} 1" stroke-dashoffset="${-start}"`;
+		content = (l.paths ?? [])
+			.map((path) =>
+				isClosed(path)
+					? `<path d="${pathD(path)}" ${style}/>`
+					: visibleLength <= 0.0001
+						? ''
+						: `<path d="${pathD(path)}" fill="none" stroke="${xml(evaluate(l.tracks.stroke, f))}" stroke-width="${Math.max(0, n('strokeWidth'))}" stroke-linecap="round" stroke-linejoin="round" ${draw}/>`
+			)
+			.join('');
 	}
 	return `${defs}<g transform="${transform(l, f)}" opacity="${clamp(n('opacity'))}">${content}</g>`;
 }

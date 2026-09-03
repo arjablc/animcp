@@ -2,7 +2,8 @@
 	import { Search, Wrench, ChevronRight } from '@lucide/svelte';
 	import type { Tool } from '../webmcp';
 
-	let { tools }: { tools: Tool[] } = $props();
+	type ToolDeclaration = Omit<Tool, 'execute'>;
+	let { tools }: { tools: ToolDeclaration[] } = $props();
 	let query = $state('');
 
 	const visibleTools = $derived(
@@ -12,7 +13,7 @@
 		})
 	);
 
-	function schemaType(schema: Tool['inputSchema']): string {
+	function schemaType(schema: ToolDeclaration['inputSchema']): string {
 		if (schema.anyOf) return schema.anyOf.map(schemaType).join(' | ');
 		if (schema.enum) return schema.enum.join(' | ');
 		return schema.type ?? 'value';
@@ -45,7 +46,7 @@
 				<div class="tool-schema">
 					<div class="schema-title">Input</div>
 					{#if tool.inputSchema.properties}
-						{#each Object.entries(tool.inputSchema.properties) as [name, schema]}
+						{#each Object.entries(tool.inputSchema.properties) as [name, schema] (name)}
 							<div class="schema-row" class:required={tool.inputSchema.required?.includes(name)}>
 								<code>{name}</code><span>{schemaType(schema)}</span>
 								{#if tool.inputSchema.required?.includes(name)}<b>required</b>{/if}
@@ -62,6 +63,7 @@
 	.tool-catalog {
 		display: flex;
 		min-height: 0;
+		min-width: 0;
 		flex-direction: column;
 		gap: 10px;
 	}
@@ -83,12 +85,13 @@
 		height: 20px;
 		place-items: center;
 		border-radius: 10px;
-		background: #143d4b;
+		background: var(--accent);
 		color: var(--acid);
 		font: 500 var(--type-meta) / 1 var(--mono);
 	}
 	.catalog-copy {
 		margin: 0;
+		overflow-wrap: anywhere;
 		color: var(--muted-foreground);
 		font-size: var(--type-label);
 		line-height: 1.55;
@@ -114,6 +117,7 @@
 		font: var(--type-label) var(--sans);
 	}
 	.tool-list {
+		min-width: 0;
 		max-height: min(56vh, 430px);
 		overflow: auto;
 		padding-right: 2px;
@@ -129,6 +133,9 @@
 		justify-content: space-between;
 		gap: 8px;
 		padding: 9px 3px;
+	}
+	.tool-entry summary > div {
+		min-width: 0;
 	}
 	.tool-entry summary::-webkit-details-marker {
 		display: none;
@@ -147,6 +154,7 @@
 	}
 	.tool-entry p {
 		margin: 4px 0 0;
+		overflow-wrap: anywhere;
 		color: var(--muted-foreground);
 		font-size: var(--type-label);
 		line-height: 1.4;
@@ -174,15 +182,19 @@
 		color: var(--paper);
 		font-size: var(--type-meta);
 	}
-	.schema-row span {
+	.schema-row code {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.schema-row span {
+		overflow-wrap: anywhere;
+		word-break: break-word;
 		color: var(--muted-foreground);
 	}
 	.schema-row b {
 		border-radius: 3px;
-		background: #143d4b;
+		background: var(--accent);
 		padding: 2px 4px;
 		color: var(--acid);
 		font: 500 0.625rem/1 var(--mono);

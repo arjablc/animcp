@@ -34,7 +34,7 @@
 		if (disabled || editing || e.button !== 0) return;
 		onbegin?.();
 		drag = { x: e.clientX, initial: value, value, moved: false };
-		e.currentTarget instanceof HTMLElement && e.currentTarget.setPointerCapture(e.pointerId);
+		if (e.currentTarget instanceof HTMLElement) e.currentTarget.setPointerCapture(e.pointerId);
 	}
 	function move(e: PointerEvent) {
 		if (!drag) return;
@@ -135,10 +135,10 @@
 		min-width: 0;
 		width: 100%;
 		padding: 4px 7px !important;
-		background: #20252e !important;
+		background: var(--surface-control) !important;
 		border: 1px solid transparent !important;
 		border-radius: 5px !important;
-		color: #e4e8ef !important;
+		color: var(--paper) !important;
 		text-align: left;
 		font:
 			11px 'DM Mono',
@@ -148,14 +148,14 @@
 		box-shadow: none !important;
 	}
 	:global(.numeric-input:hover) {
-		background: #282f3a !important;
+		background: var(--surface-selected) !important;
 	}
 	:global(.numeric-input.is-editing) {
 		cursor: text;
-		border-color: #8eab77 !important;
+		border-color: var(--acid) !important;
 	}
 	:global(.numeric-input:focus-visible) {
-		outline: 1px solid #9aad86;
+		outline: 1px solid var(--acid);
 		outline-offset: 1px;
 	}
 </style>

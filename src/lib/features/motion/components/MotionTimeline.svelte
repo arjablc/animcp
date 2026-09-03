@@ -1,27 +1,30 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
-	import { Checkbox } from '$lib/components/ui/checkbox';
-	import {
-		Play,
-		Pause,
-		SkipBack,
-		ChevronDown,
-		ChevronRight,
-		ZoomIn,
-		ZoomOut,
-		Repeat2,
-		Film,
-		CornerDownRight
-	} from '@lucide/svelte';
+	import { ChevronDown, ChevronRight, CornerDownRight, GripVertical } from '@lucide/svelte';
 	import type { MotionSession } from '../session.svelte';
 	import type { Layer, Key } from '../model';
 	import { animationSegments, keyframeMoveBounds } from '../editing';
-	let { session }: { session: MotionSession } = $props();
+	import { flattenLayerTree } from '../layer-tree';
+	import TimelineTransport from './TimelineTransport.svelte';
+	let {
+		session,
+		height,
+		expanded,
+		resizing,
+		onToggleView
+	}: {
+		session: MotionSession;
+		height: number;
+		expanded: boolean;
+		resizing: boolean;
+		onToggleView: () => void;
+	} = $props();
 	let zoom = $state(8),
 		collapsed = $state<string[]>([]),
 		scroller = $state<HTMLDivElement>() as HTMLDivElement,
 		content = $state<HTMLDivElement>() as HTMLDivElement;
 	let scrub = $state(false),
+		rowDrag = $state<{ id: string; revision: number } | null>(null),
+		rowTarget = $state<string | null>(null),
 		barSelection = $state<{
 			startX: number;
 			startY: number;
@@ -42,23 +45,27 @@
 			property: string;
 		} | null>(null);
 	const labelWidth = 190;
-	type TimelineRow = { layer: Layer; depth: number; childCount: number };
-	const timelineRows = $derived.by(() => {
-		const childrenOf = (parentId?: string) =>
-			session.project.layers.filter((layer) => layer.parentId === parentId).reverse();
-		const visit = (parentId: string | undefined, depth: number): TimelineRow[] =>
-			childrenOf(parentId).flatMap((layer) => {
-				const children = childrenOf(layer.id);
-				return [
-					{ layer, depth, childCount: children.length },
-					...(collapsed.includes(layer.id) ? [] : visit(layer.id, depth + 1))
-				];
-			});
-		return visit(undefined, 0);
-	});
+	const timelineRows = $derived(flattenLayerTree(session.project.layers, collapsed));
 	const duration = $derived(session.project.composition.durationFrames);
 	const trackWidth = $derived(duration * zoom + 80);
 	const tickStep = $derived(zoom < 4 ? 30 : zoom < 8 ? 15 : 10);
+	const selectedAnimationCount = $derived(
+		session.project.layers.reduce(
+			(count, layer) =>
+				count +
+				Object.keys(layer.tracks).reduce(
+					(propertyCount, property) =>
+						propertyCount +
+						animationSegments(layer, property).filter(
+							(segment) =>
+								session.context.selectedKeyframeIds.includes(segment.start.id) &&
+								session.context.selectedKeyframeIds.includes(segment.end.id)
+						).length,
+					0
+				),
+			0
+		)
+	);
 	function seek(e: PointerEvent) {
 		const rect = content.getBoundingClientRect();
 		session.seek(
@@ -193,6 +200,35 @@
 	function toggle(id: string) {
 		collapsed = collapsed.includes(id) ? collapsed.filter((i) => i !== id) : [...collapsed, id];
 	}
+	function reorderRow(targetId: string) {
+		const source = rowDrag;
+		rowDrag = null;
+		rowTarget = null;
+		if (!source || source.id === targetId) return;
+		const ordered = timelineRows.map((row) => row.layer.id).filter((id) => id !== source.id);
+		const targetIndex = ordered.indexOf(targetId);
+		if (targetIndex < 0) return;
+		ordered.splice(targetIndex, 0, source.id);
+		try {
+			session.commit(
+				[
+					{
+						name: 'reorder_layer',
+						input: {
+							layerId: source.id,
+							index: session.project.layers.length - 1 - ordered.indexOf(source.id)
+						}
+					}
+				],
+				'Reordered timeline',
+				'human',
+				source.revision
+			);
+			session.error = '';
+		} catch (error) {
+			session.error = String(error);
+		}
+	}
 	function wheel(e: WheelEvent) {
 		if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
 			e.preventDefault();
@@ -232,67 +268,31 @@
 	}}
 />
 
-<section class="timeline" aria-label="Animation timeline">
-	<div class="timeline-toolbar">
-		<div class="transport">
-			<Button
-				variant="ghost"
-				size="icon-xs"
-				class="editor-icon"
-				aria-label="Go to start"
-				title="Go to start"
-				onclick={() => {
-					session.playing = false;
-					session.seek(0);
-				}}><SkipBack /></Button
-			><Button
-				variant="ghost"
-				size="icon-sm"
-				class="timeline-play"
-				aria-label={session.playing ? 'Pause' : 'Play'}
-				title="Play / pause · Space"
-				onclick={() => (session.playing = !session.playing)}
-				>{#if session.playing}<Pause size={14} />{:else}<Play size={14} />{/if}</Button
-			><span class="timecode"
-				>{String(
-					Math.floor(session.context.currentFrame / session.project.composition.fps)
-				).padStart(2, '0')}:{String(
-					session.context.currentFrame % session.project.composition.fps
-				).padStart(2, '0')}<small> / {duration - 1}f</small></span
-			>
-		</div>
-		<span class="timeline-title"><Film size={13} /> Timeline</span><label
-			class:enabled={session.autoKey}
-			class="auto-key"
-			><Checkbox
-				aria-label="Auto-key"
-				class="auto-checkbox"
-				checked={session.autoKey}
-				onCheckedChange={(checked) => (session.autoKey = checked)}
-			/><span>Auto-key</span></label
-		><span class="timeline-spacer"></span><span class="fps"
-			><Repeat2 size={12} />{session.project.composition.fps} fps</span
-		>
-		<div class="timeline-zoom">
-			<Button
-				variant="ghost"
-				size="icon-xs"
-				class="editor-icon"
-				aria-label="Zoom out timeline"
-				title="Zoom out"
-				disabled={zoom <= 2}
-				onclick={() => (zoom = Math.max(2, zoom - 2))}><ZoomOut /></Button
-			><span>{zoom}px/f</span><Button
-				variant="ghost"
-				size="icon-xs"
-				class="editor-icon"
-				aria-label="Zoom in timeline"
-				title="Zoom in"
-				disabled={zoom >= 24}
-				onclick={() => (zoom = Math.min(24, zoom + 2))}><ZoomIn /></Button
-			>
-		</div>
-	</div>
+<section
+	class="timeline"
+	class:expanded
+	class:resizing
+	aria-label="Animation timeline"
+	style:height={`${height}px`}
+	style:flex-basis={`${height}px`}
+>
+	<TimelineTransport
+		playing={session.playing}
+		currentFrame={session.context.currentFrame}
+		lastFrame={duration - 1}
+		fps={session.project.composition.fps}
+		autoKey={session.autoKey}
+		{zoom}
+		{expanded}
+		onGoToStart={() => {
+			session.playing = false;
+			session.seek(0);
+		}}
+		onTogglePlaying={() => (session.playing = !session.playing)}
+		onAutoKeyChange={(enabled) => (session.autoKey = enabled)}
+		onZoomChange={(value) => (zoom = value)}
+		{onToggleView}
+	/>
 	<!-- Keyboard focus makes the horizontal scroll region accessible. -->
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
@@ -322,7 +322,7 @@
 					}}
 					onkeydown={keyboardSeek}
 				>
-					{#each Array.from({ length: Math.ceil(duration / tickStep) }, (_, i) => i * tickStep) as tick}<span
+					{#each Array.from({ length: Math.ceil(duration / tickStep) }, (_, i) => i * tickStep) as tick (tick)}<span
 							class="ruler-tick"
 							style:left={`${tick * zoom}px`}>{tick}<i></i></span
 						>{/each}<span
@@ -344,10 +344,27 @@
 					style:left={`${labelWidth}px`}
 					style:background-size={`${tickStep * zoom}px 100%`}
 				></div>
-				{#each timelineRows as row (row.layer.id)}{@const l = row.layer}{@const animated = Object.entries(
-						l.tracks
-					).filter(([, t]) => t.keys.length)}
-					<div class="layer-track" class:group-track={l.type === 'group'}>
+				{#each timelineRows as row (row.layer.id)}{@const l = row.layer}{@const animated =
+						Object.entries(l.tracks).filter(([, t]) => t.keys.length)}
+					<div
+						class="layer-track"
+						role="group"
+						aria-label={`${l.name} timeline row`}
+						class:group-track={l.type === 'group'}
+						class:drop-target={rowTarget === l.id}
+						ondragover={(event) => {
+							if (!rowDrag) return;
+							event.preventDefault();
+							rowTarget = l.id;
+						}}
+						ondragleave={() => {
+							if (rowTarget === l.id) rowTarget = null;
+						}}
+						ondrop={(event) => {
+							event.preventDefault();
+							reorderRow(l.id);
+						}}
+					>
 						<div
 							class="sticky-label layer-track-label"
 							class:selected={session.context.selectedLayerIds.includes(l.id)}
@@ -360,7 +377,20 @@
 								>{#if collapsed.includes(l.id)}<ChevronRight size={12} />{:else}<ChevronDown
 										size={12}
 									/>{/if}</button
-							><span class="timeline-tree-gutter" style:width={`${row.depth * 13}px`} aria-hidden="true"
+							><button
+								class="row-drag-handle"
+								draggable="true"
+								aria-label={`Reorder ${l.name} timeline`}
+								title="Drag to reorder timeline"
+								ondragstart={() => (rowDrag = { id: l.id, revision: session.project.revision })}
+								ondragend={() => {
+									rowDrag = null;
+									rowTarget = null;
+								}}><GripVertical size={12} /></button
+							><span
+								class="timeline-tree-gutter"
+								style:width={`${row.depth * 13}px`}
+								aria-hidden="true"
 								>{#if row.depth > 0}<CornerDownRight size={11} />{/if}</span
 							><button
 								class="track-name"
@@ -373,17 +403,19 @@
 							aria-label={`Select ${l.name} track`}
 							onclick={() => session.select([l.id])}
 							style:width={`${trackWidth}px`}
-								>{#if !animated.length}{#if row.childCount}<span
+							>{#if !animated.length}{#if row.childCount}<span
 										>{row.childCount} {row.childCount === 1 ? 'layer' : 'layers'}</span
 									>{:else}<span>Add keyframes or enable Auto-key to animate</span>{/if}
-									>{:else if collapsed.includes(l.id)}<span
-										>{row.childCount ? `${row.childCount} ${row.childCount === 1 ? 'layer' : 'layers'} · ` : ''}{animated.length} animated {animated.length === 1
+								>{:else if collapsed.includes(l.id)}<span
+									>{row.childCount
+										? `${row.childCount} ${row.childCount === 1 ? 'layer' : 'layers'} · `
+										: ''}{animated.length} animated {animated.length === 1
 										? 'property'
 										: 'properties'}</span
 								>{/if}</button
 						>
 					</div>
-					{#if !collapsed.includes(l.id)}{#each animated as [property, track]}<div
+					{#if !collapsed.includes(l.id)}{#each animated as [property, track] (property)}<div
 								class="property-track"
 							>
 								<button
@@ -467,12 +499,12 @@
 						Your animation starts here. Add a layer from the toolbar.
 					</p>{/if}
 				{#if barSelection}<div
-					class="bar-selection"
-					style:left={`${Math.min(barSelection.startX, barSelection.endX)}px`}
-					style:top={`${Math.min(barSelection.startY, barSelection.endY)}px`}
-					style:width={`${Math.abs(barSelection.endX - barSelection.startX)}px`}
-					style:height={`${Math.abs(barSelection.endY - barSelection.startY)}px`}
-				></div>{/if}
+						class="bar-selection"
+						style:left={`${Math.min(barSelection.startX, barSelection.endX)}px`}
+						style:top={`${Math.min(barSelection.startY, barSelection.endY)}px`}
+						style:width={`${Math.abs(barSelection.endX - barSelection.startX)}px`}
+						style:height={`${Math.abs(barSelection.endY - barSelection.startY)}px`}
+					></div>{/if}
 				<div
 					class="playhead-line"
 					style:left={`${labelWidth + session.context.currentFrame * zoom}px`}
@@ -489,110 +521,40 @@
 	</div>
 	<div class="timeline-footer">
 		<span
-			>{session.context.selectedKeyframeIds.length > 1
-				? 'Drag animation to move · drag edges to trim · easing in Properties'
-				: 'Drag across bars to select · Shift adds bars · Shift + scroll pans horizontally'}</span
-		><span>{session.autoKey ? 'Auto-key on · edits create animation' : 'Auto-key off'}</span>
+			>{selectedAnimationCount > 1
+				? `${selectedAnimationCount} animations selected · edit easing or delete together in Properties`
+				: selectedAnimationCount === 1
+					? 'Drag animation to move · drag edges to trim · easing in Properties'
+					: 'Drag across bars to select · Shift adds bars · Shift + scroll pans horizontally'}</span
+		><span
+			>{session.autoKey
+				? 'Auto-key on · edits create animation'
+				: 'Auto-key off · edits adjust the whole track'}</span
+		>
 	</div>
 </section>
 
 <style>
 	.timeline {
-		height: 254px;
 		min-height: 180px;
-		flex: 0 0 254px;
-		background: #171c24;
-		border-top: 1px solid #353d49;
+		flex-grow: 0;
+		flex-shrink: 0;
+		background: var(--surface-timeline);
+		border-top: 1px solid var(--line);
 		display: flex;
 		flex-direction: column;
 		min-width: 0;
-		color: #99a9be;
+		color: var(--text-muted);
+		transition:
+			height 260ms cubic-bezier(0.22, 1, 0.36, 1),
+			flex-basis 260ms cubic-bezier(0.22, 1, 0.36, 1),
+			box-shadow 260ms ease-out;
 	}
-	.timeline-toolbar {
-		height: 44px;
-		min-height: 44px;
-		display: flex;
-		align-items: center;
-		gap: 20px;
-		padding: 0 15px;
-		border-bottom: 1px solid #2b333f;
+	.timeline.expanded {
+		box-shadow: 0 -18px 44px #0008;
 	}
-	.transport {
-		display: flex;
-		align-items: center;
-		gap: 5px;
-	}
-	.transport :global(.timeline-play) {
-		background: var(--acid);
-		color: var(--acid-ink);
-		border-radius: 6px;
-		width: 28px;
-		height: 27px;
-		padding: 5px;
-	}
-	.transport :global(.timeline-play:hover) {
-		background: #a4edfb;
-	}
-	.timecode {
-		font: 500 var(--type-label) / 1 var(--mono);
-		color: #c4d0df;
-		margin-left: 6px;
-	}
-	.timecode small {
-		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #677b92;
-	}
-	.timeline-title {
-		display: flex;
-		align-items: center;
-		gap: 7px;
-		font-size: var(--type-label);
-		color: #9bacc0;
-	}
-	.auto-key {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: var(--type-label);
-		color: #7f90a6;
-		cursor: pointer;
-	}
-	.auto-key.enabled {
-		color: var(--acid);
-	}
-	.auto-key :global(.auto-checkbox) {
-		width: 13px;
-		height: 13px;
-		border: 1px solid #576574;
-		border-radius: 3px;
-		cursor: pointer;
-		background: transparent;
-	}
-	.auto-key :global(.auto-checkbox[data-state='checked']) {
-		background: var(--acid);
-		border-color: var(--acid);
-		color: var(--acid-ink);
-	}
-	.timeline-spacer {
-		flex: 1;
-	}
-	.fps {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #73869d;
-	}
-	.timeline-zoom {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-	}
-	.timeline-zoom > span {
-		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #899bb2;
-		width: 34px;
-		text-align: center;
+	.timeline.resizing {
+		transition: none;
 	}
 	.timeline-scroll {
 		overflow: auto;
@@ -612,9 +574,9 @@
 		position: sticky;
 		top: 0;
 		z-index: 5;
-		background: #1c222c;
+		background: var(--surface-timeline-raised);
 		height: 29px;
-		border-bottom: 1px solid #303947;
+		border-bottom: 1px solid var(--line);
 	}
 	.sticky-label {
 		position: sticky;
@@ -623,15 +585,15 @@
 		min-width: 190px;
 		z-index: 3;
 		box-sizing: border-box;
-		background: #191f29;
+		background: var(--surface-timeline);
 	}
 	.ruler-label {
 		z-index: 6;
 		padding: 8px 14px;
 		font-size: var(--type-meta);
-		color: #74889f;
-		background: #1c222c;
-		border-right: 1px solid #313a46;
+		color: var(--text-subtle);
+		background: var(--surface-timeline-raised);
+		border-right: 1px solid var(--line);
 	}
 	.ruler {
 		position: relative;
@@ -644,7 +606,7 @@
 		position: absolute;
 		top: 4px;
 		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #75869c;
+		color: var(--text-subtle);
 		padding-left: 4px;
 		pointer-events: none;
 	}
@@ -653,7 +615,7 @@
 		top: 15px;
 		left: 0;
 		height: 8px;
-		border-left: 1px solid #536074;
+		border-left: 1px solid var(--line-bright);
 	}
 	.playhead-cap {
 		position: absolute;
@@ -661,7 +623,7 @@
 		width: 10px;
 		height: 12px;
 		transform: translateX(-50%);
-		background: #d0efac;
+		background: var(--acid);
 		clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
 		pointer-events: none;
 	}
@@ -673,7 +635,7 @@
 		right: 0;
 		top: 0;
 		bottom: 0;
-		background-image: linear-gradient(90deg, #2c354350 1px, transparent 1px);
+		background-image: linear-gradient(90deg, color-mix(in srgb, var(--line) 60%, transparent) 1px, transparent 1px);
 		pointer-events: none;
 	}
 	.layer-track,
@@ -682,41 +644,63 @@
 		display: flex;
 		position: relative;
 	}
+	.layer-track.drop-target {
+		box-shadow: inset 0 2px 0 var(--acid);
+	}
 	.layer-track-label {
 		display: flex;
 		align-items: center;
 		gap: 5px;
 		padding: 0 10px;
-		border-right: 1px solid #303947;
+		border-right: 1px solid var(--line);
 	}
 	.layer-track-label.selected {
-		background: #173b4a;
+		background: var(--selection-strong);
 	}
 	.group-track .layer-track-label,
 	.group-track .layer-lane {
-		background-color: #213042;
+		background-color: var(--surface-selected);
 	}
 	.group-track .layer-track-label {
-		box-shadow: inset 2px 0 0 #7194ae;
+		box-shadow: inset 2px 0 0 var(--info);
 	}
 	.timeline-tree-gutter {
 		display: flex;
 		align-items: center;
 		justify-content: flex-end;
-		color: #66829d;
+		color: var(--text-subtle);
 		flex-shrink: 0;
 	}
 	.expand-track,
 	.track-name {
 		border: 0;
 		background: transparent;
-		color: #a9b9cb;
+		color: var(--text-muted);
 		padding: 0;
 		cursor: pointer;
 	}
+	.row-drag-handle {
+		width: 18px;
+		height: 24px;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: var(--text-subtle);
+		cursor: grab;
+		display: inline-grid;
+		place-items: center;
+	}
+	.row-drag-handle:hover,
+	.row-drag-handle:focus-visible {
+		color: var(--acid);
+		outline: none;
+	}
+	.row-drag-handle:active {
+		cursor: grabbing;
+	}
 	.track-name.group-name {
 		font-weight: 600;
-		color: #d1e2ef;
+		color: var(--paper);
 	}
 	.expand-track {
 		width: 15px;
@@ -738,11 +722,11 @@
 	}
 	.track-count {
 		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #63768d;
+		color: var(--text-subtle);
 	}
 	.layer-lane {
 		border: 0;
-		background: #20283444;
+		background: var(--surface-timeline-lane);
 		text-align: left;
 		padding: 0 14px;
 		flex-shrink: 0;
@@ -750,17 +734,17 @@
 	}
 	.layer-lane span {
 		font-size: var(--type-meta);
-		color: #62758e;
+		color: var(--text-subtle);
 	}
 	.property-label {
 		display: flex;
 		align-items: center;
 		gap: 9px;
 		border: 0;
-		border-right: 1px solid #303947;
+		border-right: 1px solid var(--line);
 		text-align: left;
 		padding: 0 13px 0 31px;
-		color: #7f94af;
+		color: var(--text-subtle);
 		font-size: var(--type-meta);
 		cursor: pointer;
 	}
@@ -771,13 +755,13 @@
 	}
 	.property-label.selected {
 		color: var(--acid);
-		background: #143d4b;
+		background: var(--selection-strong);
 	}
 	.property-dot {
 		width: 4px;
 		height: 4px;
 		border-radius: 50%;
-		background: #648a83;
+		background: var(--info);
 		flex-shrink: 0;
 	}
 	.animation-lane {
@@ -789,28 +773,28 @@
 		top: 5px;
 		height: 19px;
 		border-radius: 4px;
-		background: #294b70;
-		border: 1px solid #50789e;
+		background: color-mix(in srgb, var(--info) 42%, var(--ink));
+		border: 1px solid color-mix(in srgb, var(--info) 72%, var(--line));
 		box-sizing: border-box;
-		color: #d8e9f8;
+		color: var(--paper);
 	}
 	.animation-segment:nth-child(even) {
-		background: #415269;
-		border-color: #6a8197;
-		color: #b4cbe2;
+		background: color-mix(in srgb, var(--sky-500) 26%, var(--panel));
+		border-color: var(--line-bright);
+		color: var(--text-muted);
 	}
 	.animation-segment.active {
-		background: #143d4b;
+		background: var(--selection-strong);
 		color: var(--paper);
 		border-color: var(--acid);
-		box-shadow: 0 0 0 1px #65dff81f;
+		box-shadow: 0 0 0 1px var(--selection-fill);
 	}
 	.bar-selection {
 		position: absolute;
 		z-index: 4;
 		box-sizing: border-box;
 		border: 1px solid var(--acid);
-		background: #8fcad820;
+		background: var(--selection-fill);
 		pointer-events: none;
 	}
 	.bar-body {
@@ -855,7 +839,7 @@
 		bottom: 1px;
 		width: 8px;
 		border: 0;
-		background: #b7f0fcaa;
+		background: color-mix(in srgb, var(--sky-300) 72%, transparent);
 		border-radius: 2px;
 		cursor: ew-resize;
 		touch-action: none;
@@ -873,17 +857,17 @@
 		width: 8px;
 		height: 15px;
 		transform: translateX(-4px);
-		border: 1px solid #72dff2;
-		background: #1b6274;
+		border: 1px solid var(--sky-400);
+		background: color-mix(in srgb, var(--acid) 40%, var(--ink));
 		border-radius: 3px;
 		padding: 0;
 		cursor: grab;
 		touch-action: none;
 	}
 	.single-key.active {
-		background: #143d4b;
+		background: var(--selection-strong);
 		border-color: var(--acid);
-		box-shadow: 0 0 0 1px #65dff81f;
+		box-shadow: 0 0 0 1px var(--selection-fill);
 	}
 	.locked {
 		opacity: 0.45;
@@ -918,22 +902,15 @@
 		align-items: center;
 		justify-content: space-between;
 		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #6d8098;
-		border-top: 1px solid #27313e;
+		color: var(--text-subtle);
+		border-top: 1px solid var(--line);
 	}
 	.timeline-empty {
 		padding-top: 30px;
 		font-size: var(--type-label);
-		color: #71859f;
+		color: var(--text-subtle);
 	}
 	@media (max-width: 900px) {
-		.timeline-toolbar {
-			gap: 12px;
-		}
-		.timeline-title,
-		.fps {
-			display: none;
-		}
 		.timeline {
 			height: 230px;
 			flex-basis: 230px;

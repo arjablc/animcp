@@ -2,15 +2,11 @@
 	import { tick } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import { Textarea } from '$lib/components/ui/textarea';
 	import {
 		Copy,
 		Trash2,
 		SlidersHorizontal,
-		Type,
-		Italic,
 		Plus,
-		X,
 		PanelRightClose,
 		PanelRightOpen,
 		MousePointer2
@@ -19,13 +15,31 @@
 	import { animationSegments } from '../editing';
 	import PropertyField from './PropertyField.svelte';
 	import EasingInspector from './EasingInspector.svelte';
-	import NumericInput from './NumericInput.svelte';
-	import FontPicker from './FontPicker.svelte';
+	import TypographySection from './TypographySection.svelte';
+	import FillStrokeSection from './FillStrokeSection.svelte';
 	let { session }: { session: MotionSession } = $props();
 	let open = $state(true);
 	let inspectorScroll = $state<HTMLDivElement>();
+	const selectedSegments = $derived(
+		session.project.layers.flatMap((candidate) =>
+			Object.keys(candidate.tracks).flatMap((candidateProperty) =>
+				animationSegments(candidate, candidateProperty)
+					.filter(
+						(candidateSegment) =>
+							session.context.selectedKeyframeIds.includes(candidateSegment.start.id) &&
+							session.context.selectedKeyframeIds.includes(candidateSegment.end.id)
+					)
+					.map((candidateSegment) => ({
+						layer: candidate,
+						property: candidateProperty,
+						start: candidateSegment.start,
+						end: candidateSegment.end
+					}))
+			)
+		)
+	);
 	$effect(() => {
-		const id = segment?.id;
+		const id = selectedSegments.map((selectedSegment) => selectedSegment.start.id).join(',');
 		if (id) {
 			open = true;
 			tick().then(() => inspectorScroll?.scrollTo({ top: 0 }));
@@ -34,23 +48,15 @@
 	const layer = $derived(
 		session.project.layers.find((l) => l.id === session.context.selectedLayerIds[0])
 	);
-	const property = $derived(session.context.selectedProperties[0]);
-	const segment = $derived(
-		layer && property && layer.tracks[property]
-			? animationSegments(layer, property).find(
-					(s) =>
-						session.context.selectedKeyframeIds.length === 2 &&
-						session.context.selectedKeyframeIds.includes(s.start.id) &&
-						session.context.selectedKeyframeIds.includes(s.end.id)
-				)
-			: undefined
-	);
 	const selectedKeyLayers = $derived(
 		session.project.layers.filter((candidate) =>
 			Object.values(candidate.tracks).some((track) =>
 				track.keys.some((key) => session.context.selectedKeyframeIds.includes(key.id))
 			)
 		)
+	);
+	const hasOpenSubpaths = $derived(
+		layer?.type === 'path' && (layer.paths ?? []).some((path) => path.at(-1)?.type !== 'Z')
 	);
 	function safe(fn: () => unknown) {
 		try {
@@ -62,14 +68,6 @@
 	}
 	function change(changes: Record<string, unknown>) {
 		if (layer) safe(() => session.run('set_layer', { layerId: layer.id, changes }));
-	}
-	function deleteSelectedKeyframes() {
-		const keyframeIds = session.context.selectedKeyframeIds;
-		if (!keyframeIds.length) return;
-		safe(() => {
-			session.run('delete_keyframes', { keyframeIds }, 'Deleted selected keyframes');
-			session.select(session.context.selectedLayerIds, [], session.context.selectedProperties);
-		});
 	}
 	function applySelectedEasing(preset: string) {
 		const keyframeIds = session.context.selectedKeyframeIds;
@@ -134,12 +132,9 @@
 		>
 	</div>
 	{#if open}<div class="inspector-scroll" bind:this={inspectorScroll}>
-			{#if layer}{@const l = layer}{#if segment}<EasingInspector
+			{#if layer}{@const l = layer}{#if selectedSegments.length}<EasingInspector
 						{session}
-						layer={l}
-						{property}
-						start={segment.start}
-						end={segment.end}
+						segments={selectedSegments}
 					/>{/if}
 				<section>
 					<div class="name-row">
@@ -169,7 +164,7 @@
 					</div>
 					<h3>Transform <span>{l.type}</span></h3>
 					<div class="property-grid">
-						{#each ['positionX', 'positionY', 'width', 'height', 'scaleX', 'scaleY', 'rotation', 'opacity'] as prop}<PropertyField
+						{#each l.type === 'path' ? ['positionX', 'positionY', 'scaleX', 'scaleY', 'rotation', 'opacity'] : ['positionX', 'positionY', 'width', 'height', 'scaleX', 'scaleY', 'rotation', 'opacity'] as prop (prop)}<PropertyField
 								{session}
 								layer={l}
 								property={prop}
@@ -181,156 +176,28 @@
 							/>{/if}
 					</div>
 				</section>
-				{#if l.type === 'text'}<section>
-						<h3>Typography <Type size={12} /></h3>
-						<Textarea
-							aria-label="Text content"
-							value={l.text}
-							disabled={l.locked}
-							onchange={(e) => change({ text: e.currentTarget.value })}
-						/><FontPicker {session} layer={l} />
-						<div class="font-options">
-							<span title="Font size"><Type size={13} /></span><NumericInput
-								label="Font size"
-								value={l.fontSize}
-								min={1}
-								max={1000}
-								disabled={l.locked}
-								oncommit={(v) => change({ fontSize: v })}
-							/><select
-								aria-label="Font weight"
-								value={l.fontWeight}
-								disabled={l.locked}
-								onchange={(e) => change({ fontWeight: Number(e.currentTarget.value) })}
-								>{#each [100, 200, 300, 400, 500, 600, 700, 800, 900] as w}<option value={w}
-										>{w}</option
-									>{/each}</select
-							><Button
-								variant="ghost"
-								size="icon-xs"
-								aria-label="Italic"
-								aria-pressed={l.fontStyle === 'italic'}
-								title="Italic"
-								disabled={l.locked}
-								onclick={() =>
-									change({ fontStyle: l.fontStyle === 'italic' ? 'normal' : 'italic' })}
-								><Italic /></Button
-							>
-							<NumericInput
-								label="Line height"
-								value={l.lineHeight}
-								min={0.1}
-								max={10}
-								step={0.05}
-								disabled={l.locked}
-								oncommit={(v) => change({ lineHeight: v })}
-							/>
-							<NumericInput
-								label="Letter spacing"
-								value={l.letterSpacing}
-								min={-100}
-								max={1000}
-								disabled={l.locked}
-								oncommit={(v) => change({ letterSpacing: v })}
-							/>
-							<select
-								class="alignment-select"
-								aria-label="Text alignment"
-								value={l.textAlign}
-								disabled={l.locked}
-								onchange={(e) => change({ textAlign: e.currentTarget.value })}
-							>
-								<option value="left">Align left</option><option value="center">Align center</option
-								><option value="right">Align right</option>
-							</select>
+				{#if l.type === 'text'}<TypographySection
+						{session}
+						layer={l}
+					/>{/if}{#if l.type !== 'png' && l.type !== 'svg' && l.type !== 'group'}<FillStrokeSection
+						{session}
+						layer={l}
+					/>{/if}{#if hasOpenSubpaths}<section>
+						<h3>Draw</h3>
+						<div class="property-grid">
+							<PropertyField {session} layer={l} property="drawStart" label="Start" />
+							<PropertyField {session} layer={l} property="drawEnd" label="End" />
 						</div>
-					</section>{/if}{#if l.type !== 'png' && l.type !== 'svg' && l.type !== 'group'}<section>
-						<h3>Fill & stroke</h3>
-						<select
-							aria-label="Paint type"
-							value={l.paint.type}
-							disabled={l.locked}
-							onchange={(e) =>
-								safe(() =>
-									session.run('set_paint', { layerId: l.id, type: e.currentTarget.value })
-								)}
-							><option value="solid">Solid color</option><option value="linear"
-								>Linear gradient</option
-							><option value="radial">Radial gradient</option></select
-						>{#if l.paint.type === 'solid'}<PropertyField
-								{session}
-								layer={l}
-								property="fill"
-								label="Fill color"
-							/>{:else}{#each l.paint.stops as stop, index}<div class="gradient-stop">
-									<div class="stop-heading">
-										Stop {index + 1}<Button
-											variant="ghost"
-											size="icon-xs"
-											aria-label={`Remove stop ${index + 1}`}
-											title="Remove stop"
-											disabled={l.locked || l.paint.stops.length <= 2}
-											onclick={() =>
-												safe(() =>
-													session.run('delete_gradient_stop', { layerId: l.id, stopId: stop })
-												)}><X /></Button
-										>
-									</div>
-									{#each ['color', 'offset', 'opacity'] as part}<PropertyField
-											{session}
-											layer={l}
-											property={`gradient.stop.${stop}.${part}`}
-											label={part}
-										/>{/each}
-								</div>{/each}<Button
-								variant="ghost"
-								size="sm"
-								class="text-action"
-								disabled={l.locked}
-								onclick={() =>
-									safe(() =>
-										session.run('add_gradient_stop', {
-											layerId: l.id,
-											offset: 0.5,
-											color: '#ffffff'
-										})
-									)}><Plus size={12} /> Add stop</Button
-							>
-							<div class="property-grid">
-								{#each l.paint.type === 'linear' ? ['startX', 'startY', 'endX', 'endY'] : ['centerX', 'centerY', 'focalX', 'focalY', 'radius'] as prop}<PropertyField
-										{session}
-										layer={l}
-										property={`gradient.${prop}`}
-										label={prop}
-									/>{/each}
-							</div>{/if}<PropertyField
-							{session}
-							layer={l}
-							property="paintOpacity"
-							label="Paint opacity"
-						/><PropertyField
-							{session}
-							layer={l}
-							property="stroke"
-							label="Stroke color"
-						/><PropertyField {session} layer={l} property="strokeWidth" label="Stroke width" />
+						<p class="hint">Animate Start or End to reveal, erase, or wipe this open path.</p>
 					</section>{/if}
 				<section>
-					<h3>Animation</h3>
-					{#if session.context.selectedKeyframeIds.length}<Button
-							variant="ghost"
-							size="sm"
-							class="text-action danger"
-							disabled={selectedKeyLayers.some((candidate) => candidate.locked)}
-							onclick={deleteSelectedKeyframes}
-							><Trash2 size={12} /> Delete selected keyframe{session.context.selectedKeyframeIds
-								.length === 1
-								? ''
-								: 's'}</Button
-						>{/if}
-					{#if session.context.selectedKeyframeIds.length > 1}<div class="bulk-easing">
+					<h3>Quick animation</h3>
+					{#if session.context.selectedKeyframeIds.length > 1 && !selectedSegments.length}<div
+							class="bulk-easing"
+						>
 							<span>{session.context.selectedKeyframeIds.length} selected keyframes</span>
-							<div><Button
+							<div>
+								<Button
 									variant="ghost"
 									size="xs"
 									disabled={selectedKeyLayers.some((candidate) => candidate.locked)}
@@ -345,7 +212,8 @@
 									size="xs"
 									disabled={selectedKeyLayers.some((candidate) => candidate.locked)}
 									onclick={() => applySelectedEasing('snappy')}>Snappy</Button
-								></div>
+								>
+							</div>
 						</div>{/if}
 					<Button
 						variant="ghost"
@@ -466,76 +334,6 @@
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 1px 9px;
-	}
-	.inspector :global(textarea) {
-		background: var(--ink);
-		color: var(--paper);
-		border: 1px solid var(--line-bright);
-		border-radius: 5px;
-		min-height: 62px;
-		font-size: var(--type-control);
-		margin-bottom: 9px;
-	}
-	.font-options {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-		align-items: center;
-		gap: 8px;
-		margin-top: 10px;
-		color: var(--muted-foreground);
-	}
-	.font-options > :global(.property-field) {
-		min-width: 0;
-	}
-	.font-options > span {
-		display: none;
-	}
-	.font-options :global(input) {
-		width: 58px;
-	}
-	.font-options select {
-		width: 100%;
-		margin-bottom: 0;
-	}
-	.font-options .alignment-select {
-		grid-column: 1 / -1;
-	}
-	.font-options :global(button) {
-		color: var(--muted-foreground);
-		border-radius: 4px;
-	}
-	.font-options :global(button[aria-pressed='true']) {
-		background: var(--accent);
-		color: var(--acid);
-	}
-	select {
-		width: 100%;
-		font-size: var(--type-label);
-		background: var(--panel-raised);
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		color: var(--paper);
-		padding: 6px 8px;
-		margin-bottom: 6px;
-	}
-	.font-options select {
-		margin: 0;
-	}
-	.gradient-stop {
-		margin-top: 8px;
-		padding: 7px 0;
-		border-top: 1px solid var(--line);
-	}
-	.stop-heading {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		font-size: var(--type-meta);
-		color: var(--muted-foreground);
-	}
-	.stop-heading :global(button) {
-		color: var(--muted-foreground);
-		border-radius: 4px;
 	}
 	:global(.text-action) {
 		text-transform: none !important;

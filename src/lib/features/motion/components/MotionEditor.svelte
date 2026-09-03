@@ -13,10 +13,10 @@
 	import LayerPanel from './LayerPanel.svelte';
 	import MotionStage from './MotionStage.svelte';
 	import MotionToolbar from './MotionToolbar.svelte';
-	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { Button } from '$lib/components/ui/button';
-	import { X } from '@lucide/svelte';
+	import { LoaderCircle, PanelLeft, TriangleAlert, X } from '@lucide/svelte';
 	import MotionTimeline from './MotionTimeline.svelte';
+	import { deleteShortcutAction } from '../editing';
 	let { id }: { id: string } = $props();
 	let session = $state<MotionSession | null>(null),
 		loadError = $state(''),
@@ -25,9 +25,23 @@
 		exportProgress = $state<number | null>(null);
 	let picker = $state<HTMLInputElement>() as HTMLInputElement;
 	let sidebarOpen = $state(true);
+	let mobileSidebarOpen = $state(false);
+	let isMobile = $state(false);
+	const layerPanelOpen = $derived(isMobile ? mobileSidebarOpen : sidebarOpen);
+	let activeTool = $state<'move' | 'pen'>('move');
+	let timelineHeight = $state(254);
+	let timelineExpanded = $state(false);
+	let resizingTimeline = $state(false);
 
 	// onMount runs only in the browser. Its returned function cleans up playback and WebMCP.
 	onMount(() => {
+		const media = matchMedia('(max-width: 767px)');
+		const updateMobile = () => {
+			isMobile = media.matches;
+			if (!isMobile) mobileSidebarOpen = false;
+		};
+		updateMobile();
+		media.addEventListener('change', updateMobile);
 		let closed = false,
 			disposeTools = () => {},
 			raf = 0,
@@ -45,12 +59,16 @@
 				const s = new MotionSession(p);
 				session = s;
 				s.save();
-				if (id === 'new' || id === 'demo' || id.startsWith('template-'))
+				if (id === 'new' || id === 'demo' || id.startsWith('template-')) {
+					// Persist the generated project before replacing /motion/new with its durable URL.
+					// Otherwise the destination can read IndexedDB before the debounced save begins.
+					await s.flush();
 					await goto(resolve('/motion/[id]', { id: p.id }), {
 						replaceState: true,
 						keepFocus: true,
 						noScroll: true
 					});
+				}
 				if (closed) return;
 				const cleanup = await registerMotionTools(s);
 				if (closed) cleanup();
@@ -77,6 +95,7 @@
 		}
 		raf = requestAnimationFrame(tick);
 		return () => {
+			media.removeEventListener('change', updateMobile);
 			closed = true;
 			cancelAnimationFrame(raf);
 			disposeTools();
@@ -146,6 +165,15 @@
 		}
 	}
 	function keyboard(e: KeyboardEvent) {
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+			e.preventDefault();
+			toggleSidebar();
+			return;
+		}
+		if (e.key === 'Escape' && mobileSidebarOpen) {
+			mobileSidebarOpen = false;
+			return;
+		}
 		if (
 			!session ||
 			e.target instanceof HTMLInputElement ||
@@ -154,7 +182,14 @@
 			(e.target as HTMLElement)?.isContentEditable
 		)
 			return;
-		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+		if (activeTool === 'pen' && e.key === 'Enter') {
+			e.preventDefault();
+			window.dispatchEvent(new CustomEvent('motion:finish-pen'));
+		} else if (activeTool === 'pen' && e.key === 'Escape') {
+			e.preventDefault();
+			window.dispatchEvent(new CustomEvent('motion:cancel-pen'));
+			activeTool = 'move';
+		} else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
 			e.preventDefault();
 			safe(() => (e.shiftKey ? session!.redo() : session!.undo()));
 		} else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
@@ -184,10 +219,16 @@
 			);
 		} else if (e.key === 'Delete' || e.key === 'Backspace') {
 			e.preventDefault();
+			const action = deleteShortcutAction(
+				session.context.selectedKeyframeIds,
+				session.context.selectedLayerIds,
+				session.context.selectedProperties,
+				e.repeat
+			);
 			safe(() => {
-				if (session!.context.selectedKeyframeIds.length)
+				if (action === 'keyframes')
 					session!.run('delete_keyframes', { keyframeIds: session!.context.selectedKeyframeIds });
-				else if (session!.context.selectedLayerIds.length)
+				else if (action === 'layers')
 					session!.commit(
 						session!.context.selectedLayerIds.map((layerId) => ({
 							name: 'delete_layer',
@@ -198,22 +239,58 @@
 			});
 		}
 	}
+	function toggleSidebar() {
+		if (isMobile) mobileSidebarOpen = !mobileSidebarOpen;
+		else sidebarOpen = !sidebarOpen;
+	}
+	function resizeTimeline(e: PointerEvent) {
+		if (!resizingTimeline) return;
+		timelineHeight = Math.max(
+			180,
+			Math.min(window.innerHeight - 140, window.innerHeight - e.clientY)
+		);
+		timelineExpanded = timelineHeight > window.innerHeight * 0.55;
+	}
+	function toggleTimelineView() {
+		timelineExpanded = !timelineExpanded;
+		timelineHeight = timelineExpanded ? Math.round(window.innerHeight * 0.75) : 254;
+	}
 </script>
 
-<svelte:head><title>AniMCP — Motion studio</title></svelte:head>
-<svelte:window onkeydown={keyboard} />
+<svelte:head><title>Editor - animcp</title></svelte:head>
+<svelte:window
+	onkeydown={keyboard}
+	onpointermove={resizeTimeline}
+	onpointerup={() => (resizingTimeline = false)}
+	onpointercancel={() => (resizingTimeline = false)}
+/>
 {#if session}{@const s = session}
 	<main class="studio dark">
-		<Sidebar.Provider
-			bind:open={sidebarOpen}
-			class="editor-workspace"
-			style="--sidebar-width:230px;--sidebar-width-icon:46px;"
-			><LayerPanel session={s} open={sidebarOpen} />
+		<div class="editor-workspace">
+			{#if isMobile && mobileSidebarOpen}<button
+					class="sidebar-overlay"
+					type="button"
+					aria-label="Close layers panel"
+					onclick={() => (mobileSidebarOpen = false)}
+				></button>{/if}
+			<LayerPanel session={s} open={layerPanelOpen} onToggle={toggleSidebar} />
 			<section class="center" aria-label="Composition workspace">
-				<div class="mobile-sidebar"><Sidebar.Trigger class="editor-icon" /></div>
+				<div class="mobile-sidebar">
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						class="editor-icon"
+						aria-label="Open layers panel"
+						aria-controls="layer-sidebar"
+						aria-expanded={mobileSidebarOpen}
+						onclick={toggleSidebar}><PanelLeft /></Button
+					>
+				</div>
 				<MotionToolbar
 					session={s}
 					{busy}
+					{activeTool}
+					onToolChange={(tool) => (activeTool = tool)}
 					onCreate={create}
 					onGroup={groupSelected}
 					onImport={() => picker.click()}
@@ -243,14 +320,58 @@
 						<span>Recording MP4</span>
 						<strong>{Math.round(exportProgress * 100)}%</strong>
 					</div>{/if}
-				<MotionStage session={s} onImport={(files) => void imported(files)} />
+				<MotionStage
+					session={s}
+					{activeTool}
+					onToolChange={(tool) => (activeTool = tool)}
+					onImport={(files) => void imported(files)}
+				/>
 			</section>
-			<MotionInspector session={s} /></Sidebar.Provider
-		><MotionTimeline session={s} />
-	</main>{:else}<div class="loading">
-		<a href={resolve('/')}>← AniMCP</a>
-		<p>{loadError || 'Opening motion studio…'}</p>
-	</div>{/if}
+			<MotionInspector session={s} />
+		</div>
+		<button
+			type="button"
+			class="timeline-resizer"
+			class:active={resizingTimeline}
+			aria-label="Resize timeline and stage"
+			onpointerdown={(event) => {
+				event.preventDefault();
+				resizingTimeline = true;
+				(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+			}}
+			onkeydown={(event) => {
+				if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+				event.preventDefault();
+				timelineHeight = Math.max(
+					180,
+					Math.min(window.innerHeight - 140, timelineHeight + (event.key === 'ArrowUp' ? 24 : -24))
+				);
+			}}
+		>
+			<span></span>
+		</button>
+		<MotionTimeline
+			session={s}
+			height={timelineHeight}
+			expanded={timelineExpanded}
+			resizing={resizingTimeline}
+			onToggleView={toggleTimelineView}
+		/>
+	</main>{:else}<main class="loading" aria-live="polite" aria-busy={!loadError}>
+		<a class="loading-brand" href={resolve('/')} aria-label="Return to AniMCP home"
+			>ani<span>MCP</span></a
+		>
+		<section class="loading-panel">
+			<div class="loading-mark" class:spinning={!loadError} aria-hidden="true">
+				{#if loadError}<TriangleAlert size={24} />{:else}<LoaderCircle size={24} />{/if}
+			</div>
+			<div>
+				<h1>{loadError ? 'The studio could not open' : 'Opening your canvas'}</h1>
+				<p>{loadError || 'Preparing the composition, tools, and timeline.'}</p>
+			</div>
+			{#if loadError}<a class="loading-return" href={resolve('/')}>Return to projects</a>{/if}
+		</section>
+	</main>{/if}
 
 <style>
 	:global(body) {
@@ -267,43 +388,26 @@
 		color: var(--paper);
 		font: var(--type-label) / var(--leading-compact) var(--sans);
 		color-scheme: dark;
-		/* Keep the operating surfaces in the landing page's blue-gray palette. */
-		--ink: #0d1522;
-		--panel: #162337;
-		--panel-raised: #1b2a3e;
-		--line: #31445a;
-		--line-bright: #496989;
-		--acid: #8fcad8;
+		/* Inherit the landing palette; the editor changes hierarchy, not brand. */
 		--sidebar: var(--panel);
 		--sidebar-foreground: var(--paper);
 		--sidebar-border: var(--line);
 		--primary: var(--acid);
 		--primary-foreground: var(--acid-ink);
-		--muted: var(--panel-raised);
-		--muted-foreground: #a7b8cd;
-		--accent: #20344c;
+		--muted-foreground: var(--text-muted);
 		--accent-foreground: var(--paper);
 		--border: var(--line);
 		--input: var(--line-bright);
 		--ring: var(--acid);
+		background: var(--ink);
 	}
 	:global(.editor-workspace) {
-		position: relative !important;
-		min-height: 0 !important;
-		min-width: 0 !important;
-		flex: 1 !important;
+		position: relative;
+		min-height: 0;
+		min-width: 0;
+		flex: 1;
+		display: flex;
 		overflow: hidden;
-	}
-	:global(.editor-sidebar) {
-		position: absolute !important;
-		height: 100% !important;
-		border-color: var(--line) !important;
-	}
-	:global(.editor-workspace [data-slot='sidebar-gap']) {
-		height: 100%;
-	}
-	:global(.editor-workspace [data-slot='sidebar-inner']) {
-		background: var(--panel) !important;
 	}
 	:global(.editor-icon) {
 		width: 30px !important;
@@ -343,9 +447,54 @@
 		min-height: 0;
 		display: flex;
 		flex-direction: column;
-		background-color: var(--ink);
-		background-image: radial-gradient(#49698932 0.7px, transparent 0.7px);
-		background-size: 16px 16px;
+		background: var(--ink);
+	}
+	.timeline-resizer {
+		position: relative;
+		z-index: 20;
+		height: 7px;
+		min-height: 7px;
+		margin-top: -3px;
+		cursor: ns-resize;
+		background: transparent;
+		border: 0;
+		padding: 0;
+		touch-action: none;
+	}
+	.timeline-resizer::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 3px;
+		height: 1px;
+		background: var(--line);
+		transition: background 140ms ease-out;
+	}
+	.timeline-resizer span {
+		position: absolute;
+		left: 50%;
+		top: 1px;
+		width: 42px;
+		height: 5px;
+		transform: translateX(-50%);
+		border-radius: 3px;
+		background: var(--line-bright);
+		opacity: 0;
+		transition: opacity 140ms ease-out;
+	}
+	.timeline-resizer:hover span,
+	.timeline-resizer:focus-visible span,
+	.timeline-resizer.active span {
+		opacity: 1;
+	}
+	.timeline-resizer:hover::before,
+	.timeline-resizer.active::before {
+		background: var(--acid);
+	}
+	.timeline-resizer:focus-visible {
+		outline: 2px solid var(--acid);
+		outline-offset: -2px;
 	}
 	.notice {
 		position: absolute;
@@ -356,9 +505,9 @@
 		display: flex;
 		gap: 10px;
 		align-items: center;
-		background: #4b3529;
-		color: #f1c19a;
-		border: 1px solid #735039;
+		background: color-mix(in srgb, var(--warning) 16%, var(--ink));
+		color: var(--warning);
+		border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--line));
 		border-radius: 6px;
 		padding: 7px 10px;
 		font-size: var(--type-label);
@@ -388,16 +537,95 @@
 		flex: 1;
 	}
 	.notice :global(button) {
-		color: #f1c19a;
+		color: var(--warning);
 	}
 	.mobile-sidebar {
 		display: none;
 	}
+	.sidebar-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 30;
+		border: 0;
+		background: color-mix(in srgb, var(--ink) 78%, transparent);
+	}
 	.loading {
-		padding: 40px;
+		min-height: 100dvh;
+		padding: clamp(20px, 5vw, 56px);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: clamp(32px, 8vh, 88px);
+	}
+	.loading-brand {
+		position: fixed;
+		top: clamp(20px, 4vw, 40px);
+		left: clamp(20px, 5vw, 56px);
+		color: var(--paper);
+		font: 700 clamp(1rem, 2vw, 1.25rem) / 1 var(--display);
+		letter-spacing: -0.035em;
+	}
+	.loading-brand span {
 		color: var(--acid);
-		background: var(--ink);
-		min-height: 100vh;
+	}
+	.loading-panel {
+		width: min(100%, 440px);
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 18px;
+		align-items: start;
+		padding: 22px;
+		border: 1px solid var(--line);
+		border-radius: 14px;
+		background: color-mix(in srgb, var(--panel) 88%, transparent);
+		box-shadow: 0 18px 44px #0006;
+	}
+	.loading-mark {
+		width: 46px;
+		height: 46px;
+		display: grid;
+		place-items: center;
+		border-radius: 12px;
+		background: var(--accent);
+		color: var(--acid);
+	}
+	.loading-mark.spinning :global(svg) {
+		animation: editor-loading-spin 1.2s linear infinite;
+	}
+	.loading-panel h1 {
+		margin: 2px 0 6px;
+		font: 600 clamp(1.15rem, 2.4vw, 1.45rem) / 1.15 var(--display);
+		letter-spacing: -0.025em;
+	}
+	.loading-panel p {
+		margin: 0;
+		color: var(--muted);
+		font-size: var(--type-body);
+		line-height: var(--leading-body);
+		overflow-wrap: anywhere;
+	}
+	.loading-return {
+		grid-column: 2;
+		justify-self: start;
+		margin-top: 2px;
+		color: var(--acid);
+		font-weight: 700;
+		text-underline-offset: 4px;
+	}
+	.loading-return:hover,
+	.loading-return:focus-visible {
+		text-decoration: underline;
+	}
+	@keyframes editor-loading-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.loading-mark :global(svg) {
+			animation: none;
+		}
 	}
 	:global(.studio *) {
 		scrollbar-width: thin;

@@ -11,6 +11,7 @@ export function propertyEdits(
 	for (const [property, value] of Object.entries(changes)) {
 		const track = layer.tracks[property];
 		check(track, `Unknown property ${property}`);
+		const existingKey = track.keys.some((key) => key.frame === frame);
 		if (autoKey && !track.keys.length && frame > 0)
 			operations.push({
 				name: 'add_keyframe',
@@ -22,11 +23,28 @@ export function propertyEdits(
 				layerId: layer.id,
 				property,
 				value,
-				...(autoKey || track.keys.length ? { frame } : {})
+				...(autoKey || existingKey
+					? { frame }
+					: track.keys.length
+						? { trackEdit: true, referenceFrame: frame }
+						: {})
 			}
 		});
 	}
 	return operations;
+}
+
+/** Resolve Delete without allowing a held key to change targets after reconciliation. */
+export function deleteShortcutAction(
+	selectedKeyframeIds: string[],
+	selectedLayerIds: string[],
+	selectedProperties: string[],
+	repeated: boolean
+): 'keyframes' | 'layers' | null {
+	if (repeated) return null;
+	if (selectedKeyframeIds.length) return 'keyframes';
+	if (selectedLayerIds.length && !selectedProperties.length) return 'layers';
+	return null;
 }
 export function animationSegments(layer: Layer, property: string) {
 	const track = layer.tracks[property];
@@ -57,21 +75,9 @@ export function previewLayer(
 	};
 }
 export function propertyStep(property: string) {
-	return /scale|opacity|Opacity|^gradient\./.test(property) ? 0.01 : 1;
+	return /scale|opacity|Opacity|^draw(Start|End)$|^gradient\./.test(property) ? 0.01 : 1;
 }
-export function propertyBounds(property: string): [number, number] {
-	if (
-		property === 'opacity' ||
-		property === 'paintOpacity' ||
-		property.endsWith('.opacity') ||
-		property.endsWith('.offset')
-	)
-		return [0, 1];
-	if (property === 'scaleX' || property === 'scaleY') return [0.001, 100];
-	if (['width', 'height', 'gradient.radius'].includes(property)) return [0.001, 10000];
-	if (['cornerRadius', 'strokeWidth'].includes(property)) return [0, 10000];
-	return [-1e6, 1e6];
-}
+export { propertyBounds } from './model';
 export function numericValue(layer: Layer, property: string, frame: number) {
 	return Number(evaluate(layer.tracks[property], frame));
 }

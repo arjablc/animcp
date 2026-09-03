@@ -151,7 +151,7 @@
 		min-width: 0;
 	}
 	.property-icon {
-		color: #84909f;
+		color: var(--text-subtle);
 		flex: 0 0 15px;
 		display: flex;
 		align-items: center;
@@ -171,14 +171,14 @@
 	.color-code {
 		font: 400 var(--type-meta) / 1 var(--mono);
 		flex: 1;
-		color: #afbac8;
+		color: var(--text-muted);
 	}
 	.property-field :global(.key-toggle) {
 		width: 21px;
 		height: 26px;
 		border: 0;
 		padding: 0;
-		color: #677585;
+		color: var(--text-subtle);
 		border-radius: 4px;
 	}
 	.property-field :global(.keyed) {
