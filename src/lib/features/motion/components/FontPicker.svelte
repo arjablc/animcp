@@ -160,10 +160,10 @@
 		justify-content: space-between;
 		width: 100%;
 		padding: 8px 10px;
-		border: 1px solid #333c48;
+		border: 1px solid var(--line);
 		border-radius: 6px;
-		background: #232a34;
-		color: #e0e8f0;
+		background: var(--surface-control);
+		color: var(--paper);
 		font-size: var(--type-label);
 		cursor: pointer;
 	}
@@ -179,16 +179,16 @@
 		display: flex;
 		align-items: center;
 		gap: 7px;
-		color: #8495ac;
+		color: var(--text-subtle);
 	}
 	.font-search :global(input) {
-		background: #252c37;
+		background: var(--surface-selected);
 		border: 0;
 		border-radius: 5px;
 		height: 32px;
 		font-size: var(--type-label);
 		box-shadow: none;
-		color: #e2e8f0;
+		color: var(--paper);
 	}
 	.font-list {
 		max-height: 280px;
@@ -203,15 +203,15 @@
 		border: 0;
 		border-radius: 4px;
 		background: transparent;
-		color: #c8d2df;
+		color: var(--text-muted);
 		text-align: left;
 		font-size: var(--type-control);
 		cursor: pointer;
 	}
 	.font-list button:hover,
 	.font-list button[aria-selected='true'] {
-		background: #303c2f;
-		color: #d6efae;
+		background: var(--selection-strong);
+		color: var(--acid);
 	}
 	.font-list button:disabled {
 		opacity: 0.5;
@@ -221,10 +221,10 @@
 		gap: 5px;
 		align-items: center;
 		font-size: var(--type-meta);
-		color: #8b9aaf;
+		color: var(--text-subtle);
 	}
 	p {
 		font-size: var(--type-label);
-		color: #efb08a;
+		color: var(--warning);
 	}
 </style>

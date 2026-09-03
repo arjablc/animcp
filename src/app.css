@@ -74,8 +74,8 @@
 
 :root {
 	font-family: 'iA Writer Quattro', sans-serif;
-	color: #eef4fb;
-	background: #0b1220;
+	color: var(--text-strong);
+	background: var(--navy-950);
 	font-synthesis: none;
 	--sans: 'iA Writer Quattro', sans-serif;
 	--display: 'Anybody', 'Arial Narrow', sans-serif;
@@ -88,19 +88,45 @@
 	--type-meta: 0.6875rem;
 	--leading-body: 1.65;
 	--leading-compact: 1.45;
-	/* 60% midnight canvas, 30% blue working surfaces, 10% cyan signal. */
-	--ink: #0b1220;
-	--panel: #142238;
-	--panel-raised: #1b2d46;
-	--paper: #eef4fb;
-	--muted: #a7b8cd;
-	--line: #2b405a;
-	--line-bright: #496989;
-	--acid: #65dff8;
-	--acid-ink: #06202a;
-	--coral: #ff846d;
-	--warning: #f3bd68;
-	--canvas-grid: #162842;
+	/* AniMCP palette — extracted from the landing page and shared by every surface. */
+	--navy-950: #0d1522;
+	--navy-900: #101b2a;
+	--navy-850: #142238;
+	--navy-800: #1b2d46;
+	--navy-700: #213651;
+	--navy-600: #31445a;
+	--navy-500: #496989;
+	--sky-300: #b6e7ee;
+	--sky-400: #a4edfb;
+	--sky-500: #8fcad8;
+	--sky-600: #759fc9;
+	--text-strong: #eef4fb;
+	--text-muted: #afc0d1;
+	--text-subtle: #8da4ba;
+	--signal-coral: #ff846d;
+	--signal-warning: #f3bd68;
+
+	/* Semantic roles keep the operating UI intentionally restrained and scannable. */
+	--ink: var(--navy-950);
+	--panel: var(--navy-850);
+	--panel-raised: var(--navy-800);
+	--paper: var(--text-strong);
+	--muted: var(--text-muted);
+	--line: var(--navy-600);
+	--line-bright: var(--navy-500);
+	--acid: var(--sky-500);
+	--acid-ink: var(--navy-950);
+	--coral: var(--signal-coral);
+	--warning: var(--signal-warning);
+	--canvas-grid: color-mix(in srgb, var(--navy-600) 58%, var(--ink));
+	--surface-control: var(--navy-800);
+	--surface-selected: var(--navy-700);
+	--surface-timeline: var(--navy-900);
+	--surface-timeline-raised: var(--navy-850);
+	--surface-timeline-lane: color-mix(in srgb, var(--navy-850) 82%, var(--ink));
+	--selection-fill: color-mix(in srgb, var(--acid) 16%, transparent);
+	--selection-strong: color-mix(in srgb, var(--acid) 28%, var(--ink));
+	--info: var(--sky-600);
 	--background: var(--ink);
 	--foreground: var(--paper);
 	--card: var(--panel);
@@ -113,7 +139,7 @@
 	--secondary-foreground: var(--paper);
 	--muted-ui: var(--panel-raised);
 	--muted-foreground: var(--muted);
-	--accent: #213651;
+	--accent: var(--surface-selected);
 	--accent-foreground: var(--paper);
 	--destructive: var(--coral);
 	--border: var(--line);

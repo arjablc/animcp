@@ -46,16 +46,33 @@
 
 	const webmcpTools = $derived(createMotionTools(session));
 	let popover = $state<'webmcp' | 'export' | null>(null);
+	let webmcpTrigger = $state<HTMLElement | null>(null);
+	let exportTrigger = $state<HTMLElement | null>(null);
+
+	function popoverPosition(kind: 'webmcp' | 'export') {
+		const trigger = kind === 'webmcp' ? webmcpTrigger : exportTrigger;
+		const rect = trigger?.getBoundingClientRect();
+		const width = Math.min(kind === 'webmcp' ? 390 : 328, window.innerWidth - 24);
+		const left = Math.max(
+			12,
+			Math.min((rect?.right ?? 12) - width, window.innerWidth - width - 12)
+		);
+		return `top:${Math.min((rect?.bottom ?? 0) + 12, window.innerHeight - 60)}px;left:${left}px`;
+	}
 </script>
 
 <svelte:window
 	onclick={(event) => {
-		if (!(event.target instanceof Element) || !event.target.closest('.popover-anchor'))
+		if (
+			!(event.target instanceof Element) ||
+			!event.target.closest('[data-popover-trigger], .motion-popover')
+		)
 			popover = null;
 	}}
 	onkeydown={(event) => {
 		if (event.key === 'Escape') popover = null;
 	}}
+	onresize={() => (popover = null)}
 />
 <div class="floating-toolbar" role="toolbar" aria-label="Drawing tools">
 	<Button
@@ -146,6 +163,8 @@
 			title="WebMCP agent connection"
 			aria-expanded={popover === 'webmcp'}
 			aria-controls="webmcp-popover"
+			data-popover-trigger
+			bind:ref={webmcpTrigger}
 			onclick={(event) => {
 				event.stopPropagation();
 				popover = popover === 'webmcp' ? null : 'webmcp';
@@ -155,16 +174,6 @@
 			<i class:connected={session.webmcp.includes('registered') || session.webmcp.includes('ready')}
 			></i>
 		</Button>
-		{#if popover === 'webmcp'}<div
-				id="webmcp-popover"
-				class="motion-popover webmcp-popover"
-				role="dialog"
-				tabindex="-1"
-				aria-label="WebMCP agent connection"
-			>
-				<p class="webmcp-status">{session.webmcp}</p>
-				<WebMcpToolCatalog tools={webmcpTools} />
-			</div>{/if}
 	</div>
 	<div class="popover-anchor">
 		<Button
@@ -175,6 +184,8 @@
 			title="Export"
 			aria-expanded={popover === 'export'}
 			aria-controls="export-popover"
+			data-popover-trigger
+			bind:ref={exportTrigger}
 			onclick={(event) => {
 				event.stopPropagation();
 				popover = popover === 'export' ? null : 'export';
@@ -182,33 +193,39 @@
 		>
 			<Download size={16} />
 		</Button>
-		{#if popover === 'export'}<div
-				id="export-popover"
-				class="motion-popover export-menu"
-				role="dialog"
-				tabindex="-1"
-				aria-label="Export composition"
-			>
-				<div class="popover-heading">Export composition</div>
-				<Button variant="ghost" disabled={busy} onclick={() => onExport('native')}>
-					Native project · all assets
-				</Button>
-				<Button variant="ghost" disabled={busy} onclick={() => onExport('svg')}>
-					Current frame · SVG
-				</Button>
-				<Button variant="ghost" disabled={busy} onclick={() => onExport('lottie')}>
-					Lottie animation
-				</Button>
-				<Button variant="ghost" disabled={busy} onclick={() => onExport('mp4')}>
-					<Film size={14} /> MP4 video · H.264
-				</Button>
-				<small>
-					MP4 records the full composition in real time. Text and SVG are rasterized in Lottie;
-					native projects preserve all editable properties.
-				</small>
-			</div>{/if}
 	</div>
 </div>
+{#if popover === 'webmcp'}<div
+		id="webmcp-popover"
+		class="motion-popover webmcp-popover"
+		style={popoverPosition('webmcp')}
+		role="dialog"
+		tabindex="-1"
+		aria-label="WebMCP agent connection"
+	>
+		<p class="webmcp-status">{session.webmcp}</p>
+		<WebMcpToolCatalog tools={webmcpTools} />
+	</div>{/if}
+{#if popover === 'export'}<div
+		id="export-popover"
+		class="motion-popover export-menu"
+		style={popoverPosition('export')}
+		role="dialog"
+		tabindex="-1"
+		aria-label="Export composition"
+	>
+		<div class="popover-heading">Export composition</div>
+		<Button variant="ghost" disabled={busy} onclick={() => onExport('native')}>.animcp.json</Button>
+		<Button variant="ghost" disabled={busy} onclick={() => onExport('svg')}>
+			Current frame · SVG
+		</Button>
+		<Button variant="ghost" disabled={busy} onclick={() => onExport('lottie')}>
+			Lottie animation
+		</Button>
+		<Button variant="ghost" disabled={busy} onclick={() => onExport('mp4')}>
+			<Film size={14} /> MP4 video · H.264
+		</Button>
+	</div>{/if}
 
 <style>
 	.floating-toolbar {
@@ -221,7 +238,7 @@
 		display: flex;
 		align-items: center;
 		gap: 2px;
-		background: #1b2d46f2;
+		background: color-mix(in srgb, var(--panel-raised) 94%, transparent);
 		border: 1px solid var(--line-bright);
 		border-radius: 10px;
 		box-shadow: 0 6px 22px #0005;
@@ -235,16 +252,16 @@
 		margin: 0 3px;
 	}
 	.popover-anchor {
-		position: relative;
 		display: flex;
 	}
 	:global(.motion-popover) {
-		position: absolute;
-		top: calc(100% + 17px);
-		right: 0;
-		z-index: 20;
+		position: fixed;
+		z-index: 50;
 		display: flex;
 		flex-direction: column;
+		box-sizing: border-box;
+		max-height: calc(100dvh - 24px);
+		overflow: auto;
 	}
 	.floating-toolbar :global(.webmcp-trigger) {
 		position: relative;
@@ -253,7 +270,7 @@
 		width: 4px;
 		height: 4px;
 		border-radius: 50%;
-		background: #d7bb6e;
+		background: var(--warning);
 		position: absolute;
 		right: 4px;
 		bottom: 4px;
@@ -262,9 +279,9 @@
 		background: var(--acid);
 	}
 	:global(.motion-popover) {
-		background: #202833 !important;
-		color: #c4d0df !important;
-		border: 1px solid #3a4758 !important;
+		background: var(--panel-raised) !important;
+		color: var(--muted-foreground) !important;
+		border: 1px solid var(--line-bright) !important;
 		border-radius: 9px !important;
 		box-shadow: 0 10px 35px #0007 !important;
 		font-family: var(--sans);
@@ -280,7 +297,7 @@
 	:global(.motion-popover .popover-text) {
 		font-size: var(--type-label);
 		line-height: 1.7;
-		color: #93a8c1;
+		color: var(--muted-foreground);
 		margin: 0;
 	}
 	:global(.motion-popover.webmcp-popover) {
@@ -298,7 +315,9 @@
 			monospace;
 	}
 	:global(.motion-popover.export-menu) {
+		width: min(328px, calc(100vw - 24px));
 		gap: 4px;
+		padding: 12px;
 	}
 	:global(.export-menu button) {
 		text-transform: none;
@@ -307,30 +326,31 @@
 		font-size: var(--type-label);
 		justify-content: flex-start;
 		border-radius: 5px;
-		color: #b6c8dd;
+		color: var(--muted-foreground);
 	}
 	:global(.export-menu small) {
 		font-size: var(--type-meta);
 		line-height: 1.6;
-		color: #8197b2;
+		color: var(--muted-foreground);
 		margin-top: 8px;
+		overflow-wrap: anywhere;
 	}
 	:global(.motion-popover),
 	:global(.motion-popover *) {
 		scrollbar-width: thin;
-		scrollbar-color: #465365 #181e27;
+		scrollbar-color: var(--line-bright) var(--ink);
 	}
 	:global(.motion-popover ::-webkit-scrollbar) {
 		width: 8px;
 		height: 8px;
 	}
 	:global(.motion-popover ::-webkit-scrollbar-track) {
-		background: #181e27;
+		background: var(--ink);
 	}
 	:global(.motion-popover ::-webkit-scrollbar-thumb) {
-		background: #465365;
+		background: var(--line-bright);
 		border-radius: 8px;
-		border: 2px solid #181e27;
+		border: 2px solid var(--ink);
 	}
 	@media (max-width: 1000px) {
 		.floating-toolbar {

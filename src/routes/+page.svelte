@@ -125,14 +125,14 @@
 <style>
 	.landing {
 		min-height: 100vh;
-		background: #0d1522;
+		background: var(--ink);
 		color: var(--paper);
 		padding: 0 clamp(24px, 6vw, 104px);
 		overflow: hidden;
 	}
 	:global(.landing ::selection) {
-		background: #8fcad8;
-		color: #0d1522;
+		background: var(--acid);
+		color: var(--acid-ink);
 	}
 	nav {
 		height: 88px;
@@ -146,7 +146,7 @@
 		letter-spacing: -0.04em;
 	}
 	.brand span {
-		color: #8fcad8;
+		color: var(--acid);
 	}
 	.nav-link,
 	.hero-action,
@@ -158,11 +158,11 @@
 		font-weight: 700;
 	}
 	.nav-link {
-		color: #b6c7d8;
+		color: var(--text-muted);
 		transition: color 160ms ease;
 	}
 	.nav-link:hover {
-		color: #8fcad8;
+		color: var(--acid);
 	}
 	.hero {
 		max-width: 1240px;
@@ -185,20 +185,20 @@
 		font-size: clamp(3.5rem, 7vw, 6rem);
 	}
 	.hero h1 em {
-		color: #8fcad8;
+		color: var(--acid);
 		font-style: normal;
 	}
 	.hero-copy p,
 	.agent-intro p {
 		max-width: 52ch;
 		margin: 28px 0;
-		color: #afc0d1;
+		color: var(--text-muted);
 		font-size: 1.02rem;
 		line-height: 1.75;
 	}
 	.hero-action {
-		background: #8fcad8;
-		color: #0d1522;
+		background: var(--acid);
+		color: var(--acid-ink);
 		padding: 14px 18px;
 		border-radius: 8px;
 		transition: transform 160ms ease;
@@ -208,9 +208,9 @@
 		box-shadow: 0 10px 22px #0005;
 	}
 	.motion-study {
-		border: 1px solid #38506a;
+		border: 1px solid var(--line);
 		border-radius: 14px;
-		background: #142238;
+		background: var(--panel);
 		padding: 17px;
 		box-shadow: 0 28px 60px #0006;
 		isolation: isolate;
@@ -218,7 +218,7 @@
 	.study-top {
 		display: flex;
 		justify-content: space-between;
-		color: #9eb5cb;
+		color: var(--text-muted);
 		font: 600 10px/1 var(--mono);
 		letter-spacing: 0.11em;
 	}
@@ -228,8 +228,8 @@
 		overflow: hidden;
 		margin: 16px 0;
 		border-radius: 8px;
-		background: #b6e7ee;
-		color: #102034;
+		background: var(--sky-300);
+		color: var(--navy-850);
 	}
 	.word {
 		position: absolute;
@@ -244,7 +244,7 @@
 	.word-two {
 		right: 8%;
 		bottom: 18%;
-		color: #346078;
+		color: var(--navy-600);
 	}
 	.cursor {
 		position: absolute;
@@ -253,15 +253,15 @@
 		width: 28px;
 		height: 28px;
 		border-radius: 50%;
-		color: #101722;
-		background: #ff846d;
+		color: var(--navy-900);
+		background: var(--coral);
 	}
 	.cursor::before {
 		content: '';
 		position: absolute;
 		inset: 8px;
 		border-radius: 50%;
-		background: #102034;
+		background: var(--navy-850);
 	}
 	.study-timeline {
 		display: grid;
@@ -271,25 +271,25 @@
 		display: grid;
 		grid-template-columns: 82px 1fr;
 		align-items: center;
-		color: #aebfd0;
+		color: var(--text-muted);
 		font: 10px/1 var(--mono);
 	}
 	.track {
 		display: block;
 		height: 9px;
 		border-radius: 2px;
-		background: #8fcad8;
+		background: var(--acid);
 		margin-right: 22%;
 	}
 	.track.blue {
 		margin-left: 16%;
 		margin-right: 6%;
-		background: #759fc9;
+		background: var(--info);
 	}
 	.track.coral {
 		margin-left: 34%;
 		margin-right: 0;
-		background: #ff846d;
+		background: var(--coral);
 	}
 	.agent-section {
 		max-width: 1240px;
@@ -303,7 +303,7 @@
 		font-size: clamp(2.8rem, 4.6vw, 4.5rem);
 	}
 	.text-link {
-		color: #8fcad8;
+		color: var(--acid);
 	}
 	.agent-steps {
 		margin: 0;
@@ -322,10 +322,10 @@
 		margin-top: 8px;
 	}
 	.agent-steps li:hover {
-		background: #142238;
+		background: var(--panel);
 	}
 	.agent-steps span {
-		color: #8fcad8;
+		color: var(--acid);
 		font: 11px/1 var(--mono);
 	}
 	.agent-steps h3 {
@@ -334,7 +334,7 @@
 	}
 	.agent-steps p {
 		margin: 0;
-		color: #afc0d1;
+		color: var(--text-muted);
 		font-size: 0.86rem;
 		line-height: 1.65;
 	}
@@ -348,7 +348,7 @@
 	}
 	.principles div {
 		padding-top: 0;
-		color: #8fcad8;
+		color: var(--acid);
 		transition: transform 160ms ease;
 	}
 	.principles div:hover {
@@ -364,7 +364,7 @@
 	}
 	.principles p {
 		margin: 0;
-		color: #afc0d1;
+		color: var(--text-muted);
 		font-size: 0.84rem;
 		line-height: 1.7;
 	}
@@ -374,7 +374,7 @@
 		display: flex;
 		gap: 22px;
 		padding: 22px 0;
-		color: #8da4ba;
+		color: var(--text-subtle);
 		font: 10px/1 var(--mono);
 		letter-spacing: 0.08em;
 	}
@@ -382,7 +382,7 @@
 		flex: 1;
 	}
 	footer a {
-		color: #8fcad8;
+		color: var(--acid);
 	}
 	@media (max-width: 800px) {
 		.hero,

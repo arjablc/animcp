@@ -109,7 +109,7 @@
 		align-items: center;
 		gap: 20px;
 		padding: 0 15px;
-		border-bottom: 1px solid #2b333f;
+		border-bottom: 1px solid var(--line);
 	}
 	.transport {
 		display: flex;
@@ -125,23 +125,23 @@
 		padding: 5px;
 	}
 	.transport :global(.timeline-play:hover) {
-		background: #a4edfb;
+		background: var(--sky-400);
 	}
 	.timecode {
 		font: 500 var(--type-label) / 1 var(--mono);
-		color: #c4d0df;
+		color: var(--text-muted);
 		margin-left: 6px;
 	}
 	.timecode small {
 		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #677b92;
+		color: var(--text-subtle);
 	}
 	.timeline-title {
 		display: flex;
 		align-items: center;
 		gap: 7px;
 		font-size: var(--type-label);
-		color: #9bacc0;
+		color: var(--text-muted);
 	}
 	:global(.timeline-view-toggle) {
 		margin-left: -8px;
@@ -151,7 +151,7 @@
 		align-items: center;
 		gap: 8px;
 		font-size: var(--type-label);
-		color: #7f90a6;
+		color: var(--text-subtle);
 		cursor: pointer;
 	}
 	.auto-key.enabled {
@@ -160,7 +160,7 @@
 	.auto-checkbox {
 		width: 13px;
 		height: 13px;
-		border: 1px solid #576574;
+		border: 1px solid var(--line-bright);
 		border-radius: 3px;
 		cursor: pointer;
 		background: transparent;
@@ -179,7 +179,7 @@
 		align-items: center;
 		gap: 6px;
 		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #73869d;
+		color: var(--text-subtle);
 	}
 	.timeline-zoom {
 		display: flex;
@@ -188,7 +188,7 @@
 	}
 	.timeline-zoom > span {
 		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #899bb2;
+		color: var(--text-subtle);
 		width: 34px;
 		text-align: center;
 	}

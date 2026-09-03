@@ -262,15 +262,15 @@
 <style>
 	.easing-inspector {
 		padding: 16px;
-		border-bottom: 1px solid #2d333d;
-		background: #1b222b;
+		border-bottom: 1px solid var(--line);
+		background: var(--surface-timeline-raised);
 	}
 	.section-heading {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		font-size: var(--type-label);
-		color: #d9e4f0;
+		color: var(--paper);
 	}
 	.section-heading > span {
 		display: flex;
@@ -282,32 +282,32 @@
 	}
 	.section-heading :global(button) {
 		border-radius: 5px;
-		color: #8d9bad;
+		color: var(--text-subtle);
 	}
 	.section-heading :global(.delete-animation) {
 		margin-left: 4px;
-		color: #f08d86;
+		color: var(--coral);
 	}
 	.section-heading :global(.delete-animation:hover:not(:disabled)),
 	.section-heading :global(.delete-animation:focus-visible:not(:disabled)) {
-		background: #4a2529;
-		color: #ffc0ba;
+		background: color-mix(in srgb, var(--coral) 22%, var(--ink));
+		color: var(--paper);
 	}
 	.easing-inspector p {
 		display: flex;
 		justify-content: space-between;
 		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #d5ef9d;
+		color: var(--acid);
 		margin: 10px 0;
 	}
 	.easing-inspector p span {
-		color: #8190a2;
+		color: var(--text-subtle);
 	}
 	.segment-times {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		color: #8292a6;
+		color: var(--text-subtle);
 	}
 	.curve {
 		width: 100%;
@@ -316,20 +316,20 @@
 	}
 	.curve .grid {
 		fill: none;
-		stroke: #333e4b;
+		stroke: var(--line);
 		stroke-width: 1;
 	}
 	.curve line {
-		stroke: #697a91;
+		stroke: var(--line-bright);
 		stroke-dasharray: 3 3;
 	}
 	.motion-curve {
-		stroke: #d8f99c;
+		stroke: var(--acid);
 		stroke-width: 2.5;
 		fill: none;
 	}
 	.curve circle {
-		fill: #1a242f;
+		fill: var(--ink);
 		stroke: var(--acid);
 		stroke-width: 2;
 		cursor: move;
@@ -342,17 +342,17 @@
 	}
 	.presets :global(.preset) {
 		border-radius: 5px;
-		background: #242f3b;
+		background: var(--surface-control);
 		font-size: var(--type-meta);
 		letter-spacing: 0;
 		text-transform: none;
 		padding: 4px 8px;
 		height: 26px;
 		font-weight: 500;
-		color: #a8b9cd;
+		color: var(--text-muted);
 	}
 	.presets :global(.active) {
-		background: #143d4b;
+		background: var(--selection-strong);
 		color: var(--acid);
 	}
 	.control-values {
@@ -363,10 +363,10 @@
 	}
 	.control-values label {
 		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #798ba0;
+		color: var(--text-subtle);
 	}
 	.easing-inspector small {
 		font-size: var(--type-meta);
-		color: #8293a8;
+		color: var(--text-subtle);
 	}
 </style>

@@ -964,7 +964,7 @@
 		justify-content: center;
 		padding: 82px 34px 24px;
 		overflow: hidden;
-		background: #0a111c;
+		background: var(--ink);
 	}
 	.stage {
 		width: 100%;
@@ -972,7 +972,7 @@
 		max-height: 100%;
 		min-height: 0;
 		touch-action: none;
-		background: #0a111c;
+		background: var(--ink);
 		cursor: default;
 	}
 	.stage.pen-tool {
@@ -993,36 +993,36 @@
 	}
 	.pen-draft path {
 		fill: none;
-		stroke: #cfeaa9;
+		stroke: var(--acid);
 		stroke-width: 1.5;
 		stroke-dasharray: 5 3;
 		vector-effect: non-scaling-stroke;
 	}
 	.pen-draft circle {
 		fill: var(--panel-raised);
-		stroke: #cfeaa9;
+		stroke: var(--acid);
 		stroke-width: 1;
 		vector-effect: non-scaling-stroke;
 	}
 	.pen-draft .draft-handle-line {
-		stroke: #91b8e5;
+		stroke: var(--sky-300);
 		stroke-width: 1;
 		stroke-dasharray: none;
 		vector-effect: non-scaling-stroke;
 	}
 	.pen-draft .draft-handle {
 		fill: var(--panel-raised);
-		stroke: #91b8e5;
+		stroke: var(--sky-300);
 	}
 	.pen-draft .draft-anchor {
-		fill: #cfeaa9;
+		fill: var(--acid);
 		stroke: var(--ink);
 	}
 	.path-editor {
 		pointer-events: none;
 	}
 	.path-handle-line {
-		stroke: #91b8e5;
+		stroke: var(--sky-300);
 		stroke-width: 1;
 		stroke-dasharray: 3 3;
 		vector-effect: non-scaling-stroke;
@@ -1034,12 +1034,12 @@
 	}
 	.path-handle {
 		fill: var(--panel-raised);
-		stroke: #91b8e5;
+		stroke: var(--sky-300);
 		stroke-width: 1;
 		cursor: crosshair;
 	}
 	.path-anchor {
-		fill: #cfeaa9;
+		fill: var(--acid);
 		stroke: var(--ink);
 		stroke-width: 1;
 		cursor: move;
@@ -1058,7 +1058,7 @@
 		border-radius: 8px;
 		background: var(--panel);
 		box-shadow: 0 8px 22px #0005;
-		color: #a7b8cd;
+		color: var(--muted-foreground);
 		font-size: var(--type-meta);
 		white-space: nowrap;
 	}
@@ -1093,7 +1093,7 @@
 	}
 	.selection-box {
 		fill: none;
-		stroke: #cfeaa9;
+		stroke: var(--acid);
 		stroke-width: 1;
 		stroke-dasharray: 4 2;
 		vector-effect: non-scaling-stroke;
@@ -1104,7 +1104,7 @@
 		cursor: move;
 	}
 	.group-label {
-		fill: #cfeaa9;
+		fill: var(--acid);
 		font: 600 12px/1 var(--sans);
 		letter-spacing: 0.02em;
 		paint-order: stroke;
@@ -1113,7 +1113,7 @@
 		pointer-events: none;
 	}
 	.selection-controls line {
-		stroke: #cfeaa9;
+		stroke: var(--acid);
 		stroke-width: 1;
 		vector-effect: non-scaling-stroke;
 	}
@@ -1121,7 +1121,7 @@
 	.rotation-handle {
 		pointer-events: all;
 		fill: var(--panel-raised);
-		stroke: #cfeaa9;
+		stroke: var(--acid);
 		stroke-width: 1;
 		vector-effect: non-scaling-stroke;
 	}
@@ -1147,7 +1147,7 @@
 		background: color-mix(in srgb, var(--ink) 88%, transparent);
 		box-shadow: 0 8px 22px #0004;
 		font: 500 11px/1 var(--mono);
-		color: #a7b8cd;
+		color: var(--muted-foreground);
 	}
 	.stage-nav button {
 		min-height: 24px;
@@ -1171,7 +1171,7 @@
 		text-align: center;
 	}
 	.marquee {
-		fill: #65dff824;
+		fill: var(--selection-fill);
 		stroke: var(--acid);
 		stroke-width: 1;
 		stroke-dasharray: 4 3;
@@ -1192,7 +1192,7 @@
 		padding: 0 18px;
 		align-items: center;
 		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #5f738c;
+		color: var(--muted-foreground);
 	}
 	@media (max-width: 1000px) {
 		.stage-wrap {

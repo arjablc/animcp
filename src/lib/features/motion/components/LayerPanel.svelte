@@ -528,7 +528,7 @@
 		align-items: center;
 		justify-content: flex-end;
 		height: 100%;
-		color: #66829d;
+		color: var(--text-subtle);
 		flex-shrink: 0;
 	}
 	.group-toggle,

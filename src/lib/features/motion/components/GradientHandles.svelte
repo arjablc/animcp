@@ -111,7 +111,7 @@
 		y1={points[0].y}
 		x2={points.at(-1)!.x}
 		y2={points.at(-1)!.y}
-		stroke="#fff"
+	stroke="var(--paper)"
 		stroke-width="1"
 		vector-effect="non-scaling-stroke"
 		pointer-events="none"
@@ -127,8 +127,8 @@
 				? drag.values[1] * h
 				: point.y}
 			r="6"
-			fill="#0b1220"
-			stroke="#65dff8"
+			fill="var(--ink)"
+			stroke="var(--acid)"
 			stroke-width="2"
 			vector-effect="non-scaling-stroke"
 			onpointerdown={(e) => start(e, point.properties)}

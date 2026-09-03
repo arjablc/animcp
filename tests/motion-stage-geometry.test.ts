@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createLayer, createProject, type PathData } from '../src/lib/features/motion/model';
+import { transact } from '../src/lib/features/motion/commands';
 import { selectionBounds } from '../src/lib/features/motion/stage-geometry';
 import {
 	editPathControl,
@@ -28,6 +29,29 @@ describe('motion stage paths', () => {
 			width: 45,
 			height: 20
 		});
+	});
+
+	it('persists pen geometry created from SVGPoint-style coordinate accessors', () => {
+		const point = (x: number, y: number) =>
+			Object.create(
+				{},
+				{
+					x: { value: x, enumerable: false },
+					y: { value: y, enumerable: false }
+				}
+			) as { x: number; y: number };
+		const path = subpathData({
+			closed: false,
+			anchors: [penAnchor(point(120, 80)), penAnchor(point(260, 170), point(290, 200))]
+		});
+		const geometry = normalizeDraft([path]);
+		const project = transact(createProject(), [
+			{ name: 'create_layer', input: { type: 'path', name: 'Pen path', ...geometry } }
+		]).project;
+
+		expect(project.layers[0].paths).toEqual(geometry.paths);
+		expect(project.layers[0].tracks.positionX.defaultValue).toBe(120);
+		expect(project.layers[0].tracks.positionY.defaultValue).toBe(80);
 	});
 
 	it('keeps joined handles mirrored while editing a closed path', () => {

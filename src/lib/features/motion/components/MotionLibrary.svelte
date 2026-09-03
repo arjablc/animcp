@@ -210,12 +210,12 @@
 	}
 	main {
 		min-height: 100vh;
-		background: #0d1522;
+		background: var(--ink);
 		color: var(--paper);
 		padding: 0 max(28px, calc((100vw - 1220px) / 2));
 		font-family: var(--sans);
-		--landing-accent: #8fcad8;
-		--landing-line: #31445a;
+		--landing-accent: var(--acid);
+		--landing-line: var(--line);
 	}
 	.brand {
 		font-size: 24px;
@@ -261,7 +261,7 @@
 		font-size: var(--type-control);
 		border: 1px solid var(--landing-line);
 		background: transparent;
-		color: #c7d3e0;
+		color: var(--text-muted);
 	}
 	.primary {
 		background: var(--landing-accent);
@@ -308,7 +308,7 @@
 	label {
 		display: grid;
 		gap: 8px;
-		color: #bdcbda;
+		color: var(--text-muted);
 		font-size: 11px;
 		font-weight: 700;
 	}
@@ -321,7 +321,7 @@
 		width: 100%;
 		border: 1px solid var(--landing-line);
 		border-radius: 6px;
-		background: #101b2a;
+		background: var(--surface-timeline);
 		color: var(--paper);
 		padding: 11px;
 		transition:
@@ -331,7 +331,7 @@
 	input:focus,
 	select:focus {
 		border-color: var(--landing-accent);
-		box-shadow: 0 0 0 3px #8fcad833;
+		box-shadow: 0 0 0 3px var(--selection-fill);
 		outline: none;
 	}
 	.color-input {
@@ -401,7 +401,7 @@
 	}
 	.new:hover {
 		border-color: var(--landing-accent);
-		background: #142238;
+		background: var(--panel);
 	}
 	.new > span {
 		font-size: 35px;
@@ -418,8 +418,8 @@
 			background 160ms ease;
 	}
 	article:hover {
-		border-color: #6f9cbd;
-		background: #142238;
+		border-color: var(--info);
+		background: var(--panel);
 		transform: translateY(-2px);
 	}
 	.thumb {
@@ -461,7 +461,7 @@
 		color: var(--coral);
 	}
 	.error {
-		color: #ffd0ab;
+		color: var(--warning);
 	}
 	.template-grid {
 		display: grid;

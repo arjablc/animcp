@@ -9,7 +9,10 @@ export function penAnchor(point: Point, handle: Point = point): PenAnchor {
 	const dx = handle.x - point.x,
 		dy = handle.y - point.y;
 	return {
-		...point,
+		// SVGPoint/DOMPoint coordinates are accessors, not enumerable own properties.
+		// Copying with a spread drops x/y and turns a pen stroke into NaN geometry.
+		x: point.x,
+		y: point.y,
 		inX: point.x - dx,
 		inY: point.y - dy,
 		outX: point.x + dx,

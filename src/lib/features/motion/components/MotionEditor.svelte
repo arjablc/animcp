@@ -14,7 +14,7 @@
 	import MotionStage from './MotionStage.svelte';
 	import MotionToolbar from './MotionToolbar.svelte';
 	import { Button } from '$lib/components/ui/button';
-	import { PanelLeft, X } from '@lucide/svelte';
+	import { LoaderCircle, PanelLeft, TriangleAlert, X } from '@lucide/svelte';
 	import MotionTimeline from './MotionTimeline.svelte';
 	import { deleteShortcutAction } from '../editing';
 	let { id }: { id: string } = $props();
@@ -59,12 +59,16 @@
 				const s = new MotionSession(p);
 				session = s;
 				s.save();
-				if (id === 'new' || id === 'demo' || id.startsWith('template-'))
+				if (id === 'new' || id === 'demo' || id.startsWith('template-')) {
+					// Persist the generated project before replacing /motion/new with its durable URL.
+					// Otherwise the destination can read IndexedDB before the debounced save begins.
+					await s.flush();
 					await goto(resolve('/motion/[id]', { id: p.id }), {
 						replaceState: true,
 						keepFocus: true,
 						noScroll: true
 					});
+				}
 				if (closed) return;
 				const cleanup = await registerMotionTools(s);
 				if (closed) cleanup();
@@ -353,10 +357,21 @@
 			resizing={resizingTimeline}
 			onToggleView={toggleTimelineView}
 		/>
-	</main>{:else}<div class="loading">
-		<a href={resolve('/')}>← AniMCP</a>
-		<p>{loadError || 'Opening motion studio…'}</p>
-	</div>{/if}
+	</main>{:else}<main class="loading" aria-live="polite" aria-busy={!loadError}>
+		<a class="loading-brand" href={resolve('/')} aria-label="Return to AniMCP home"
+			>ani<span>MCP</span></a
+		>
+		<section class="loading-panel">
+			<div class="loading-mark" class:spinning={!loadError} aria-hidden="true">
+				{#if loadError}<TriangleAlert size={24} />{:else}<LoaderCircle size={24} />{/if}
+			</div>
+			<div>
+				<h1>{loadError ? 'The studio could not open' : 'Opening your canvas'}</h1>
+				<p>{loadError || 'Preparing the composition, tools, and timeline.'}</p>
+			</div>
+			{#if loadError}<a class="loading-return" href={resolve('/')}>Return to projects</a>{/if}
+		</section>
+	</main>{/if}
 
 <style>
 	:global(body) {
@@ -373,25 +388,18 @@
 		color: var(--paper);
 		font: var(--type-label) / var(--leading-compact) var(--sans);
 		color-scheme: dark;
-		/* Keep the operating surfaces in the landing page's blue-gray palette. */
-		--ink: #0d1522;
-		--panel: #162337;
-		--panel-raised: #1b2a3e;
-		--line: #31445a;
-		--line-bright: #496989;
-		--acid: #8fcad8;
+		/* Inherit the landing palette; the editor changes hierarchy, not brand. */
 		--sidebar: var(--panel);
 		--sidebar-foreground: var(--paper);
 		--sidebar-border: var(--line);
 		--primary: var(--acid);
 		--primary-foreground: var(--acid-ink);
-		--muted: var(--panel-raised);
-		--muted-foreground: #a7b8cd;
-		--accent: #20344c;
+		--muted-foreground: var(--text-muted);
 		--accent-foreground: var(--paper);
 		--border: var(--line);
 		--input: var(--line-bright);
 		--ring: var(--acid);
+		background: var(--ink);
 	}
 	:global(.editor-workspace) {
 		position: relative;
@@ -439,9 +447,7 @@
 		min-height: 0;
 		display: flex;
 		flex-direction: column;
-		background-color: var(--ink);
-		background-image: radial-gradient(#49698932 0.7px, transparent 0.7px);
-		background-size: 16px 16px;
+		background: var(--ink);
 	}
 	.timeline-resizer {
 		position: relative;
@@ -499,9 +505,9 @@
 		display: flex;
 		gap: 10px;
 		align-items: center;
-		background: #4b3529;
-		color: #f1c19a;
-		border: 1px solid #735039;
+		background: color-mix(in srgb, var(--warning) 16%, var(--ink));
+		color: var(--warning);
+		border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--line));
 		border-radius: 6px;
 		padding: 7px 10px;
 		font-size: var(--type-label);
@@ -531,7 +537,7 @@
 		flex: 1;
 	}
 	.notice :global(button) {
-		color: #f1c19a;
+		color: var(--warning);
 	}
 	.mobile-sidebar {
 		display: none;
@@ -541,13 +547,85 @@
 		inset: 0;
 		z-index: 30;
 		border: 0;
-		background: #0008;
+		background: color-mix(in srgb, var(--ink) 78%, transparent);
 	}
 	.loading {
-		padding: 40px;
+		min-height: 100dvh;
+		padding: clamp(20px, 5vw, 56px);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: clamp(32px, 8vh, 88px);
+	}
+	.loading-brand {
+		position: fixed;
+		top: clamp(20px, 4vw, 40px);
+		left: clamp(20px, 5vw, 56px);
+		color: var(--paper);
+		font: 700 clamp(1rem, 2vw, 1.25rem) / 1 var(--display);
+		letter-spacing: -0.035em;
+	}
+	.loading-brand span {
 		color: var(--acid);
-		background: var(--ink);
-		min-height: 100vh;
+	}
+	.loading-panel {
+		width: min(100%, 440px);
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 18px;
+		align-items: start;
+		padding: 22px;
+		border: 1px solid var(--line);
+		border-radius: 14px;
+		background: color-mix(in srgb, var(--panel) 88%, transparent);
+		box-shadow: 0 18px 44px #0006;
+	}
+	.loading-mark {
+		width: 46px;
+		height: 46px;
+		display: grid;
+		place-items: center;
+		border-radius: 12px;
+		background: var(--accent);
+		color: var(--acid);
+	}
+	.loading-mark.spinning :global(svg) {
+		animation: editor-loading-spin 1.2s linear infinite;
+	}
+	.loading-panel h1 {
+		margin: 2px 0 6px;
+		font: 600 clamp(1.15rem, 2.4vw, 1.45rem) / 1.15 var(--display);
+		letter-spacing: -0.025em;
+	}
+	.loading-panel p {
+		margin: 0;
+		color: var(--muted);
+		font-size: var(--type-body);
+		line-height: var(--leading-body);
+		overflow-wrap: anywhere;
+	}
+	.loading-return {
+		grid-column: 2;
+		justify-self: start;
+		margin-top: 2px;
+		color: var(--acid);
+		font-weight: 700;
+		text-underline-offset: 4px;
+	}
+	.loading-return:hover,
+	.loading-return:focus-visible {
+		text-decoration: underline;
+	}
+	@keyframes editor-loading-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.loading-mark :global(svg) {
+			animation: none;
+		}
 	}
 	:global(.studio *) {
 		scrollbar-width: thin;
