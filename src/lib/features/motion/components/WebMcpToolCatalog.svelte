@@ -2,7 +2,8 @@
 	import { Search, Wrench, ChevronRight } from '@lucide/svelte';
 	import type { Tool } from '../webmcp';
 
-	let { tools }: { tools: Tool[] } = $props();
+	type ToolDeclaration = Omit<Tool, 'execute'>;
+	let { tools }: { tools: ToolDeclaration[] } = $props();
 	let query = $state('');
 
 	const visibleTools = $derived(
@@ -12,7 +13,7 @@
 		})
 	);
 
-	function schemaType(schema: Tool['inputSchema']): string {
+	function schemaType(schema: ToolDeclaration['inputSchema']): string {
 		if (schema.anyOf) return schema.anyOf.map(schemaType).join(' | ');
 		if (schema.enum) return schema.enum.join(' | ');
 		return schema.type ?? 'value';

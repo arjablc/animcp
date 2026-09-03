@@ -1,13 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createProject, createLayer, uid, presets } from '../src/lib/features/motion/model';
-import {
-	createMotionTools,
-	registerMotionTools,
-	type Tool
-} from '../src/lib/features/motion/webmcp';
+import { registerMotionTools, type Tool } from '../src/lib/features/motion/webmcp';
 import { transact } from '../src/lib/features/motion/commands';
 import type { MotionSession } from '../src/lib/features/motion/session.svelte';
-function fixture() {
+async function fixture() {
 	const project = createProject();
 	for (const text of ['Title', 'hello']) {
 		const l = createLayer('text');
@@ -39,10 +35,19 @@ function fixture() {
 		select: vi.fn(),
 		seek: vi.fn()
 	} as unknown as MotionSession;
-	const tools = createMotionTools(s);
+	const tools: Tool[] = [];
+	const unreg = vi.fn();
+	const dispose = await registerMotionTools(s, {
+		modelContext: {
+			registerTool: (tool: Tool) => tools.push(tool),
+			unregisterTool: unreg
+		}
+	} as never);
 	return {
 		s,
 		tools,
+		unreg,
+		dispose,
 		call: (name: string, input: Record<string, unknown>) =>
 			tools.find((t) => t.name === name)!.execute(input) as Promise<{
 				ok: boolean;
@@ -54,95 +59,147 @@ function fixture() {
 }
 describe('motion WebMCP contract', () => {
 	it('registers executable tools on the document model context and disposes them', async () => {
-		const { s } = fixture();
-		const registered: Tool[] = [];
-		const unreg = vi.fn();
-		const dispose = await registerMotionTools(s, {
-			modelContext: {
-				registerTool: async (t: Tool) => {
-					registered.push(t);
-				},
-				unregisterTool: unreg
-			}
-		} as never);
-		expect(registered.some((t) => t.name === 'find_elements')).toBe(true);
-		expect(registered).toHaveLength(34);
-		expect(registered.map((t) => t.name)).not.toEqual(
+		const { tools, unreg, dispose } = await fixture();
+		expect(tools).toHaveLength(10);
+		expect(tools.map((tool) => tool.name)).toEqual(
 			expect.arrayContaining([
-				'undo',
-				'redo',
-				'playback',
-				'set_editor_context',
-				'copy_easing',
-				'duplicate_keyframes'
+				'get_editor_context',
+				'find_elements',
+				'get_layer',
+				'get_motion',
+				'get_operation_schema',
+				'edit_layers',
+				'edit_path',
+				'edit_animation',
+				'edit_timeline',
+				'apply_edits'
 			])
 		);
-		expect(registered.every((t) => t.inputSchema && t.description && t.execute)).toBe(true);
+		expect(tools.every((tool) => tool.inputSchema && tool.description && tool.execute)).toBe(true);
 		dispose();
-		expect(unreg).toHaveBeenCalledTimes(registered.length);
-		expect(await registered[0].execute({})).toMatchObject({ ok: false });
+		expect(unreg).toHaveBeenCalledTimes(tools.length);
+		expect(await tools[0].execute({})).toMatchObject({ ok: false });
 	});
 	it('reads text, sequences a unique result, and rejects stale edits', async () => {
-		const { s, call } = fixture();
+		const { s, call } = await fixture();
 		expect(await call('find_elements', { text: 'hello' })).toMatchObject({
 			ok: true,
 			data: { status: 'unique', candidates: [{ text: 'hello' }] }
 		});
 		expect(
-			await call('sequence_motion', {
+			await call('edit_timeline', {
 				expectedRevision: 0,
-				layerIds: [s.project.layers[1].id],
-				referenceLayerId: s.project.layers[0].id
+				action: 'sequence_motion',
+				input: {
+					layerIds: [s.project.layers[1].id],
+					referenceLayerId: s.project.layers[0].id
+				}
 			})
 		).toMatchObject({ ok: true, revision: 1 });
 		expect(s.project.layers[1].tracks.opacity.keys.map((k) => k.frame)).toEqual([21, 41]);
 		expect(
-			await call('shift_motion', {
+			await call('edit_timeline', {
 				expectedRevision: 0,
-				layerIds: [s.project.layers[1].id],
-				frames: 1
+				action: 'shift_motion',
+				input: { layerIds: [s.project.layers[1].id], frames: 1 }
 			})
 		).toMatchObject({ ok: false });
 	});
 	it('requires checked context before mutating implicit selections', async () => {
-		const { s, call } = fixture();
+		const { s, call } = await fixture();
 		s.context.selectedLayerIds = [s.project.layers[0].id];
-		expect(await call('shift_motion', { expectedRevision: 0, frames: 1 })).toMatchObject({
-			ok: false
-		});
 		expect(
-			await call('shift_motion', { expectedRevision: 0, expectedContextRevision: 0, frames: 1 })
+			await call('edit_timeline', {
+				expectedRevision: 0,
+				action: 'shift_motion',
+				input: { frames: 1 }
+			})
+		).toMatchObject({ ok: false });
+		expect(
+			await call('edit_timeline', {
+				expectedRevision: 0,
+				expectedContextRevision: 0,
+				action: 'shift_motion',
+				input: { frames: 1 }
+			})
 		).toMatchObject({ ok: true });
 	});
 	it('deduplicates retries and rejects request-id reuse', async () => {
-		const { s, call } = fixture();
+		const { s, call } = await fixture();
 		const input = {
 			expectedRevision: 0,
 			requestId: 'retry',
-			layerIds: [s.project.layers[0].id],
-			frames: 1
+			action: 'shift_motion',
+			input: { layerIds: [s.project.layers[0].id], frames: 1 }
 		};
-		const first = await call('shift_motion', input);
-		expect(await call('shift_motion', input)).toEqual(first);
+		const first = await call('edit_timeline', input);
+		expect(await call('edit_timeline', input)).toEqual(first);
 		expect(s.commit).toHaveBeenCalledTimes(1);
-		expect(await call('shift_motion', { ...input, frames: 2 })).toMatchObject({ ok: false });
+		expect(
+			await call('edit_timeline', {
+				...input,
+				input: { layerIds: [s.project.layers[0].id], frames: 2 }
+			})
+		).toMatchObject({ ok: false });
 	});
 	it('rejects invalid nested batch arguments before committing', async () => {
-		const { s, call } = fixture();
+		const { s, call } = await fixture();
 		expect(
-			await call('batch_edit', {
+			await call('apply_edits', {
 				expectedRevision: 0,
 				label: 'Bad batch',
 				operations: [
 					{
-						name: 'set_layer',
+						action: 'set_layer',
 						input: { layerId: s.project.layers[0].id, changes: { text: 'changed' } }
 					},
-					{ name: 'shift_motion', input: { frames: 'not a frame' } }
+					{ action: 'shift_motion', input: { frames: 'not a frame' } }
 				]
 			})
 		).toMatchObject({ ok: false });
 		expect(s.project.layers[0].text).toBe('Title');
 		expect(s.commit).not.toHaveBeenCalled();
+	});
+	it('creates paths and edits animatable style properties through their domain tools', async () => {
+		const { s, call } = await fixture();
+		const created = await call('edit_path', {
+			expectedRevision: 0,
+			action: 'create_path',
+			input: {
+				name: 'Line',
+				paths: [
+					[
+						{ type: 'M', x: 0, y: 0 },
+						{ type: 'L', x: 100, y: 100 }
+					]
+				],
+				bounds: { positionX: 10, positionY: 20, width: 100, height: 100 }
+			}
+		});
+		expect(created).toMatchObject({ ok: true, revision: 1 });
+		const path = s.project.layers.at(-1)!;
+		expect(path.type).toBe('path');
+		expect(
+			await call('edit_animation', {
+				expectedRevision: 1,
+				action: 'add_keyframe',
+				input: { layerId: path.id, property: 'stroke', frame: 10, value: '#ffffff' }
+			})
+		).toMatchObject({ ok: true, revision: 2 });
+		expect(path.id).toBe(s.project.layers.at(-1)!.id);
+		expect(s.project.layers.at(-1)!.tracks.stroke.keys[0].value).toBe('#ffffff');
+	});
+	it('does not expose project edits and rejects actions in the wrong domain', async () => {
+		const { call } = await fixture();
+		expect(await call('get_operation_schema', { action: 'set_composition' })).toMatchObject({
+			ok: false
+		});
+		expect(
+			await call('edit_layers', {
+				expectedRevision: 0,
+				action: 'set_paint',
+				input: { layerId: 'missing', type: 'solid' }
+			})
+		).toMatchObject({ ok: false });
 	});
 });

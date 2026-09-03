@@ -140,8 +140,9 @@ Keep interaction state near the component that owns the pointer or keyboard life
 
 WebMCP is a browser document capability, not an HTTP endpoint.
 
-- [`webmcp-schema.ts`](src/lib/features/motion/webmcp-schema.ts) declares tool schemas, descriptions, and input validation.
-- [`webmcp.ts`](src/lib/features/motion/webmcp.ts) reads session state, executes commands, handles request idempotency, and registers tools with `document.modelContext`.
+- [`webmcp-schema.ts`](src/lib/features/motion/webmcp-schema.ts) declares grouped tool and operation schemas.
+- [`webmcp-runtime.ts`](src/lib/features/motion/webmcp-runtime.ts) handles validation, revisions, retries, and command commits.
+- `webmcp-read.ts` and the `webmcp-*.ts` domain files register read, layer, path, animation, timeline, and atomic edit tools with `document.modelContext`.
 - [`WebMcpToolCatalog.svelte`](src/lib/features/motion/components/WebMcpToolCatalog.svelte) displays the available tools in the UI.
 
 Agent mutations use `MotionSession.commit`, exactly like human edits. `expectedRevision` protects project state, while `expectedContextRevision` protects selection-based requests. Keep those checks distinct.

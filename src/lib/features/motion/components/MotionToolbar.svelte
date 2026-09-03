@@ -17,7 +17,7 @@
 	import type { Layer } from '../model';
 	import type { MotionSession } from '../session.svelte';
 	import type { ExportFormat } from '../project-files';
-	import { createMotionTools } from '../webmcp';
+	import { toolDeclarations } from '../webmcp';
 	import WebMcpToolCatalog from './WebMcpToolCatalog.svelte';
 
 	let {
@@ -44,7 +44,7 @@
 		activeTool: 'move' | 'pen';
 	} = $props();
 
-	const webmcpTools = $derived(createMotionTools(session));
+	const webmcpTools = Object.values(toolDeclarations);
 	let popover = $state<'webmcp' | 'export' | null>(null);
 	let webmcpTrigger = $state<HTMLElement | null>(null);
 	let exportTrigger = $state<HTMLElement | null>(null);

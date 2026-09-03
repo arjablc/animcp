@@ -16,7 +16,6 @@ Projects stay in the browser's IndexedDB storage on the current device. AniMCP h
 - Google Fonts for text layers
 - WebMCP tools so a browser agent can inspect and edit the open composition
 
-
 ## Run Locally
 
 Install dependencies:
