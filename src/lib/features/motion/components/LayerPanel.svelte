@@ -9,6 +9,7 @@
 		Eye,
 		EyeOff,
 		LockKeyhole,
+		UnlockKeyhole,
 		GripVertical,
 		Type,
 		Square,
