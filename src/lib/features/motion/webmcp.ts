@@ -1,5 +1,5 @@
 import type { MotionSession } from './session.svelte';
-import { check, number, string, type Easing } from './model';
+import { check, number, string } from './model';
 import { findElements, layerById, type Input, type Operation } from './commands';
 type Schema = {
 	type?: string;
@@ -354,7 +354,13 @@ export function createMotionTools(session: MotionSession): Tool[] {
 									.map(([k, t]) => [k, t.locks])
 							)
 						})),
-						assets: p.assets.map(({ data: _, ...a }) => a)
+						assets: p.assets.map(({ id, name, mime, width, height }) => ({
+							id,
+							name,
+							mime,
+							width,
+							height
+						}))
 					};
 				else if (name === 'find_elements') {
 					const candidates = findElements(p, i);

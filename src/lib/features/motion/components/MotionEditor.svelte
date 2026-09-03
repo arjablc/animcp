@@ -13,9 +13,8 @@
 	import LayerPanel from './LayerPanel.svelte';
 	import MotionStage from './MotionStage.svelte';
 	import MotionToolbar from './MotionToolbar.svelte';
-	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { Button } from '$lib/components/ui/button';
-	import { X } from '@lucide/svelte';
+	import { PanelLeft, X } from '@lucide/svelte';
 	import MotionTimeline from './MotionTimeline.svelte';
 	import { deleteShortcutAction } from '../editing';
 	let { id }: { id: string } = $props();
@@ -26,6 +25,9 @@
 		exportProgress = $state<number | null>(null);
 	let picker = $state<HTMLInputElement>() as HTMLInputElement;
 	let sidebarOpen = $state(true);
+	let mobileSidebarOpen = $state(false);
+	let isMobile = $state(false);
+	const layerPanelOpen = $derived(isMobile ? mobileSidebarOpen : sidebarOpen);
 	let activeTool = $state<'move' | 'pen'>('move');
 	let timelineHeight = $state(254);
 	let timelineExpanded = $state(false);
@@ -33,6 +35,13 @@
 
 	// onMount runs only in the browser. Its returned function cleans up playback and WebMCP.
 	onMount(() => {
+		const media = matchMedia('(max-width: 767px)');
+		const updateMobile = () => {
+			isMobile = media.matches;
+			if (!isMobile) mobileSidebarOpen = false;
+		};
+		updateMobile();
+		media.addEventListener('change', updateMobile);
 		let closed = false,
 			disposeTools = () => {},
 			raf = 0,
@@ -82,6 +91,7 @@
 		}
 		raf = requestAnimationFrame(tick);
 		return () => {
+			media.removeEventListener('change', updateMobile);
 			closed = true;
 			cancelAnimationFrame(raf);
 			disposeTools();
@@ -151,6 +161,15 @@
 		}
 	}
 	function keyboard(e: KeyboardEvent) {
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+			e.preventDefault();
+			toggleSidebar();
+			return;
+		}
+		if (e.key === 'Escape' && mobileSidebarOpen) {
+			mobileSidebarOpen = false;
+			return;
+		}
 		if (
 			!session ||
 			e.target instanceof HTMLInputElement ||
@@ -216,6 +235,10 @@
 			});
 		}
 	}
+	function toggleSidebar() {
+		if (isMobile) mobileSidebarOpen = !mobileSidebarOpen;
+		else sidebarOpen = !sidebarOpen;
+	}
 	function resizeTimeline(e: PointerEvent) {
 		if (!resizingTimeline) return;
 		timelineHeight = Math.max(
@@ -239,13 +262,26 @@
 />
 {#if session}{@const s = session}
 	<main class="studio dark">
-		<Sidebar.Provider
-			bind:open={sidebarOpen}
-			class="editor-workspace"
-			style="--sidebar-width:230px;--sidebar-width-icon:46px;"
-			><LayerPanel session={s} open={sidebarOpen} />
+		<div class="editor-workspace">
+			{#if isMobile && mobileSidebarOpen}<button
+					class="sidebar-overlay"
+					type="button"
+					aria-label="Close layers panel"
+					onclick={() => (mobileSidebarOpen = false)}
+				></button>{/if}
+			<LayerPanel session={s} open={layerPanelOpen} onToggle={toggleSidebar} />
 			<section class="center" aria-label="Composition workspace">
-				<div class="mobile-sidebar"><Sidebar.Trigger class="editor-icon" /></div>
+				<div class="mobile-sidebar">
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						class="editor-icon"
+						aria-label="Open layers panel"
+						aria-controls="layer-sidebar"
+						aria-expanded={mobileSidebarOpen}
+						onclick={toggleSidebar}><PanelLeft /></Button
+					>
+				</div>
 				<MotionToolbar
 					session={s}
 					{busy}
@@ -287,8 +323,8 @@
 					onImport={(files) => void imported(files)}
 				/>
 			</section>
-			<MotionInspector session={s} /></Sidebar.Provider
-		>
+			<MotionInspector session={s} />
+		</div>
 		<button
 			type="button"
 			class="timeline-resizer"
@@ -358,22 +394,12 @@
 		--ring: var(--acid);
 	}
 	:global(.editor-workspace) {
-		position: relative !important;
-		min-height: 0 !important;
-		min-width: 0 !important;
-		flex: 1 !important;
+		position: relative;
+		min-height: 0;
+		min-width: 0;
+		flex: 1;
+		display: flex;
 		overflow: hidden;
-	}
-	:global(.editor-sidebar) {
-		position: absolute !important;
-		height: 100% !important;
-		border-color: var(--line) !important;
-	}
-	:global(.editor-workspace [data-slot='sidebar-gap']) {
-		height: 100%;
-	}
-	:global(.editor-workspace [data-slot='sidebar-inner']) {
-		background: var(--panel) !important;
 	}
 	:global(.editor-icon) {
 		width: 30px !important;
@@ -509,6 +535,13 @@
 	}
 	.mobile-sidebar {
 		display: none;
+	}
+	.sidebar-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 30;
+		border: 0;
+		background: #0008;
 	}
 	.loading {
 		padding: 40px;

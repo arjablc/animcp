@@ -62,7 +62,8 @@ export async function rasterizeContent(p: Project, l: Layer): Promise<string> {
 			ctx.globalAlpha = clamp(n('paintOpacity'));
 			ctx.fillText(line, l.textAlign === 'left' ? 0 : l.textAlign === 'center' ? w / 2 : w, y);
 			ctx.globalAlpha = 1;
-			if (ctx.lineWidth > 0) ctx.strokeText(line, l.textAlign === 'left' ? 0 : l.textAlign === 'center' ? w / 2 : w, y);
+			if (ctx.lineWidth > 0)
+				ctx.strokeText(line, l.textAlign === 'left' ? 0 : l.textAlign === 'center' ? w / 2 : w, y);
 		}
 	} else {
 		const asset = p.assets.find((a) => a.id === l.assetId);

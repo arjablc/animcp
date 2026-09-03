@@ -9,7 +9,7 @@ const config = {
 	printWidth: 100,
 	plugins: [prettierPluginSvelte, prettierPluginTailwindcss],
 	overrides: [{ files: '*.svelte', options: { parser: 'svelte' } }],
-	tailwindStylesheet: './src/routes/layout.css'
+	tailwindStylesheet: './src/app.css'
 };
 
 export default config;

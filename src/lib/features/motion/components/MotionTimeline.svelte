@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Checkbox } from '$lib/components/ui/checkbox';
 	import {
 		Play,
 		Pause,
@@ -340,11 +339,12 @@
 			onclick={onToggleView}
 			>{#if expanded}<Minimize2 />{:else}<Maximize2 />{/if}</Button
 		><label class:enabled={session.autoKey} class="auto-key"
-			><Checkbox
+			><input
+				type="checkbox"
 				aria-label="Auto-key"
 				class="auto-checkbox"
 				checked={session.autoKey}
-				onCheckedChange={(checked) => (session.autoKey = checked)}
+				onchange={(event) => (session.autoKey = event.currentTarget.checked)}
 			/><span>Auto-key</span></label
 		><span class="timeline-spacer"></span><span class="fps"
 			><Repeat2 size={12} />{session.project.composition.fps} fps</span
@@ -398,7 +398,7 @@
 					}}
 					onkeydown={keyboardSeek}
 				>
-					{#each Array.from({ length: Math.ceil(duration / tickStep) }, (_, i) => i * tickStep) as tick}<span
+					{#each Array.from({ length: Math.ceil(duration / tickStep) }, (_, i) => i * tickStep) as tick (tick)}<span
 							class="ruler-tick"
 							style:left={`${tick * zoom}px`}>{tick}<i></i></span
 						>{/each}<span
@@ -491,7 +491,7 @@
 								>{/if}</button
 						>
 					</div>
-					{#if !collapsed.includes(l.id)}{#each animated as [property, track]}<div
+					{#if !collapsed.includes(l.id)}{#each animated as [property, track] (property)}<div
 								class="property-track"
 							>
 								<button
@@ -602,9 +602,11 @@
 				: selectedAnimationCount === 1
 					? 'Drag animation to move · drag edges to trim · easing in Properties'
 					: 'Drag across bars to select · Shift adds bars · Shift + scroll pans horizontally'}</span
-		><span>{session.autoKey
+		><span
+			>{session.autoKey
 				? 'Auto-key on · edits create animation'
-				: 'Auto-key off · edits adjust the whole track'}</span>
+				: 'Auto-key off · edits adjust the whole track'}</span
+		>
 	</div>
 </section>
 
@@ -685,15 +687,16 @@
 	.auto-key.enabled {
 		color: var(--acid);
 	}
-	.auto-key :global(.auto-checkbox) {
+	.auto-checkbox {
 		width: 13px;
 		height: 13px;
 		border: 1px solid #576574;
 		border-radius: 3px;
 		cursor: pointer;
 		background: transparent;
+		accent-color: var(--acid);
 	}
-	.auto-key :global(.auto-checkbox[data-state='checked']) {
+	.auto-checkbox:checked {
 		background: var(--acid);
 		border-color: var(--acid);
 		color: var(--acid-ink);

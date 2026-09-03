@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import * as Popover from '$lib/components/ui/popover';
+	import { onMount, tick } from 'svelte';
 	import { Input } from '$lib/components/ui/input';
 	import { ChevronsUpDown, Search, Check, LoaderCircle } from '@lucide/svelte';
 	import { catalog, loadFont, type FontFamily } from '../fonts';
@@ -12,6 +11,7 @@
 		fonts = $state<FontFamily[]>([]),
 		busy = $state(false),
 		error = $state('');
+	let searchInput = $state<HTMLInputElement | null>(null);
 	const popular = [
 		'Inter',
 		'Roboto',
@@ -84,45 +84,77 @@
 			busy = false;
 		}
 	}
+	async function toggle(event: MouseEvent) {
+		event.stopPropagation();
+		open = !open;
+		if (open) {
+			await tick();
+			searchInput?.focus();
+		}
+	}
 </script>
 
-<Popover.Root bind:open
-	><Popover.Trigger class="font-trigger" aria-label="Font family" disabled={layer.locked}
-		><span>{layer.fontFamily}</span><ChevronsUpDown size={13} /></Popover.Trigger
-	><Popover.Content class="motion-popover font-popover" align="end" sideOffset={8}
-		><div class="font-search">
-			<Search size={14} /><Input
-				aria-label="Search Google Fonts"
-				placeholder="Search all Google Fonts…"
-				bind:value={query}
-			/>
-		</div>
-		<div class="font-list" role="listbox" aria-label="Google Fonts">
-			{#each matches as family}<button
-					role="option"
-					aria-selected={family === layer.fontFamily}
-					disabled={busy}
-					onclick={() => choose(family)}
-					>{family}{#if family === layer.fontFamily}<Check size={13} />{/if}</button
-				>{/each}{#if query.trim() && !matches.some((f) => f.toLowerCase() === query
-							.trim()
-							.toLowerCase())}<button
-					role="option"
-					aria-selected="false"
-					disabled={busy}
-					onclick={() => choose(query.trim())}>Load “{query.trim()}”</button
-				>{/if}
-		</div>
-		<small
-			>{#if busy}<LoaderCircle size={12} class="animate-spin" /> Loading font…{:else}{query
-					? 'Search results'
-					: 'Popular families · 16 fonts'} · loaded on demand{/if}</small
-		>{#if error}<p role="alert">{error}</p>{/if}</Popover.Content
-	></Popover.Root
->
+<svelte:window
+	onclick={(event) => {
+		if (!(event.target instanceof Element) || !event.target.closest('.font-picker')) open = false;
+	}}
+	onkeydown={(event) => {
+		if (event.key === 'Escape') open = false;
+	}}
+/>
+<div class="font-picker">
+	<button
+		type="button"
+		class="font-trigger"
+		aria-label="Font family"
+		aria-expanded={open}
+		aria-controls="font-popover"
+		disabled={layer.locked}
+		onclick={toggle}><span>{layer.fontFamily}</span><ChevronsUpDown size={13} /></button
+	>{#if open}<div
+			id="font-popover"
+			class="motion-popover font-popover"
+			role="dialog"
+			tabindex="-1"
+			aria-label="Choose font family"
+		>
+			<div class="font-search">
+				<Search size={14} /><Input
+					bind:ref={searchInput}
+					aria-label="Search Google Fonts"
+					placeholder="Search all Google Fonts…"
+					bind:value={query}
+				/>
+			</div>
+			<div class="font-list" role="listbox" aria-label="Google Fonts">
+				{#each matches as family (family)}<button
+						role="option"
+						aria-selected={family === layer.fontFamily}
+						disabled={busy}
+						onclick={() => choose(family)}
+						>{family}{#if family === layer.fontFamily}<Check size={13} />{/if}</button
+					>{/each}{#if query.trim() && !matches.some((f) => f.toLowerCase() === query
+								.trim()
+								.toLowerCase())}<button
+						role="option"
+						aria-selected="false"
+						disabled={busy}
+						onclick={() => choose(query.trim())}>Load “{query.trim()}”</button
+					>{/if}
+			</div>
+			<small
+				>{#if busy}<LoaderCircle size={12} class="animate-spin" /> Loading font…{:else}{query
+						? 'Search results'
+						: 'Popular families · 16 fonts'} · loaded on demand{/if}</small
+			>{#if error}<p role="alert">{error}</p>{/if}
+		</div>{/if}
+</div>
 
 <style>
-	:global(.font-trigger) {
+	.font-picker {
+		position: relative;
+	}
+	.font-trigger {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -135,7 +167,10 @@
 		font-size: var(--type-label);
 		cursor: pointer;
 	}
-	:global(.font-popover) {
+	.font-popover {
+		top: calc(100% + 8px);
+		right: 0;
+		z-index: 20;
 		width: 280px;
 		gap: 8px !important;
 		padding: 10px !important;

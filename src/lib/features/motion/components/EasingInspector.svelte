@@ -12,7 +12,6 @@
 		segments: { layer: Layer; property: string; start: Key; end: Key }[];
 	} = $props();
 	const selected = $derived(segments[0]);
-	const layer = $derived(selected.layer);
 	const property = $derived(selected.property);
 	const start = $derived(selected.start);
 	const end = $derived(selected.end);
@@ -223,7 +222,7 @@
 			/>{/if}</svg
 	>
 	<div class="presets">
-		{#each ['linear', 'ease-in', 'ease-out', 'ease-in-out', 'snappy', 'smooth', 'hold', 'spring-gentle', 'spring-snappy', 'spring-bouncy'] as name}<Button
+		{#each ['linear', 'ease-in', 'ease-out', 'ease-in-out', 'snappy', 'smooth', 'hold', 'spring-gentle', 'spring-snappy', 'spring-bouncy'] as name (name)}<Button
 				variant="ghost"
 				size="xs"
 				class={preset === name ? 'preset active' : 'preset'}
@@ -231,7 +230,7 @@
 			>{/each}
 	</div>
 	{#if start.easing.type === 'spring'}<div class="control-values spring-values">
-			{#each ['mass', 'stiffness', 'damping', 'velocity'] as key}<label
+			{#each ['mass', 'stiffness', 'damping', 'velocity'] as key (key)}<label
 					>{key}<NumericInput
 						label={`Spring ${key}`}
 						value={start.easing[key as keyof typeof start.easing] as number}
@@ -242,7 +241,7 @@
 					/></label
 				>{/each}
 		</div>{:else}<div class="control-values">
-			{#each ['x1', 'y1', 'x2', 'y2'] as key}<label
+			{#each ['x1', 'y1', 'x2', 'y2'] as key (key)}<label
 					>{key}<NumericInput
 						label={`Easing ${key}`}
 						value={curve[key as keyof typeof curve]}

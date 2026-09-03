@@ -15,6 +15,7 @@ export async function loadFont(
 ): Promise<void> {
 	if (['sans-serif', 'serif', 'monospace', 'system-ui'].includes(family)) return;
 	check(
+		// eslint-disable-next-line no-control-regex -- reject ASCII control characters in user input
 		family.length > 0 && family.length <= 200 && !/[\u0000-\u001f]/.test(family),
 		'Invalid font family'
 	);

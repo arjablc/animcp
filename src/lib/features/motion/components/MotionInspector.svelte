@@ -168,7 +168,7 @@
 					</div>
 					<h3>Transform <span>{l.type}</span></h3>
 					<div class="property-grid">
-						{#each l.type === 'path' ? ['positionX', 'positionY', 'scaleX', 'scaleY', 'rotation', 'opacity'] : ['positionX', 'positionY', 'width', 'height', 'scaleX', 'scaleY', 'rotation', 'opacity'] as prop}<PropertyField
+						{#each l.type === 'path' ? ['positionX', 'positionY', 'scaleX', 'scaleY', 'rotation', 'opacity'] : ['positionX', 'positionY', 'width', 'height', 'scaleX', 'scaleY', 'rotation', 'opacity'] as prop (prop)}<PropertyField
 								{session}
 								layer={l}
 								property={prop}
@@ -201,7 +201,7 @@
 								value={l.fontWeight}
 								disabled={l.locked}
 								onchange={(e) => change({ fontWeight: Number(e.currentTarget.value) })}
-								>{#each [100, 200, 300, 400, 500, 600, 700, 800, 900] as w}<option value={w}
+								>{#each [100, 200, 300, 400, 500, 600, 700, 800, 900] as w (w)}<option value={w}
 										>{w}</option
 									>{/each}</select
 							><Button
@@ -261,7 +261,7 @@
 								layer={l}
 								property="fill"
 								label="Fill color"
-							/>{:else}{#each l.paint.stops as stop, index}<div class="gradient-stop">
+							/>{:else}{#each l.paint.stops as stop, index (stop)}<div class="gradient-stop">
 									<div class="stop-heading">
 										Stop {index + 1}<Button
 											variant="ghost"
@@ -275,7 +275,7 @@
 												)}><X /></Button
 										>
 									</div>
-									{#each ['color', 'offset', 'opacity'] as part}<PropertyField
+									{#each ['color', 'offset', 'opacity'] as part (part)}<PropertyField
 											{session}
 											layer={l}
 											property={`gradient.stop.${stop}.${part}`}
@@ -296,7 +296,7 @@
 									)}><Plus size={12} /> Add stop</Button
 							>
 							<div class="property-grid">
-								{#each l.paint.type === 'linear' ? ['startX', 'startY', 'endX', 'endY'] : ['centerX', 'centerY', 'focalX', 'focalY', 'radius'] as prop}<PropertyField
+								{#each l.paint.type === 'linear' ? ['startX', 'startY', 'endX', 'endY'] : ['centerX', 'centerY', 'focalX', 'focalY', 'radius'] as prop (prop)}<PropertyField
 										{session}
 										layer={l}
 										property={`gradient.${prop}`}

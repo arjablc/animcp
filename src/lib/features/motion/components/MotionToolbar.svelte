@@ -14,7 +14,6 @@
 		Film
 	} from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
-	import * as Popover from '$lib/components/ui/popover';
 	import type { Layer } from '../model';
 	import type { MotionSession } from '../session.svelte';
 	import type { ExportFormat } from '../project-files';
@@ -46,8 +45,18 @@
 	} = $props();
 
 	const webmcpTools = $derived(createMotionTools(session));
+	let popover = $state<'webmcp' | 'export' | null>(null);
 </script>
 
+<svelte:window
+	onclick={(event) => {
+		if (!(event.target instanceof Element) || !event.target.closest('.popover-anchor'))
+			popover = null;
+	}}
+	onkeydown={(event) => {
+		if (event.key === 'Escape') popover = null;
+	}}
+/>
 <div class="floating-toolbar" role="toolbar" aria-label="Drawing tools">
 	<Button
 		variant="ghost"
@@ -128,45 +137,77 @@
 		onclick={onRedo}><Redo2 /></Button
 	>
 	<span class="tool-divider"></span>
-	<Popover.Root>
-		<Popover.Trigger
+	<div class="popover-anchor">
+		<Button
+			variant="ghost"
+			size="icon-sm"
 			class="editor-icon webmcp-trigger"
 			aria-label="WebMCP"
 			title="WebMCP agent connection"
+			aria-expanded={popover === 'webmcp'}
+			aria-controls="webmcp-popover"
+			onclick={(event) => {
+				event.stopPropagation();
+				popover = popover === 'webmcp' ? null : 'webmcp';
+			}}
 		>
 			<Bot size={17} />
 			<i class:connected={session.webmcp.includes('registered') || session.webmcp.includes('ready')}
 			></i>
-		</Popover.Trigger>
-		<Popover.Content class="motion-popover webmcp-popover" sideOffset={12}>
-			<p class="webmcp-status">{session.webmcp}</p>
-			<WebMcpToolCatalog tools={webmcpTools} />
-		</Popover.Content>
-	</Popover.Root>
-	<Popover.Root>
-		<Popover.Trigger class="editor-icon" aria-label="Export" title="Export">
+		</Button>
+		{#if popover === 'webmcp'}<div
+				id="webmcp-popover"
+				class="motion-popover webmcp-popover"
+				role="dialog"
+				tabindex="-1"
+				aria-label="WebMCP agent connection"
+			>
+				<p class="webmcp-status">{session.webmcp}</p>
+				<WebMcpToolCatalog tools={webmcpTools} />
+			</div>{/if}
+	</div>
+	<div class="popover-anchor">
+		<Button
+			variant="ghost"
+			size="icon-sm"
+			class="editor-icon"
+			aria-label="Export"
+			title="Export"
+			aria-expanded={popover === 'export'}
+			aria-controls="export-popover"
+			onclick={(event) => {
+				event.stopPropagation();
+				popover = popover === 'export' ? null : 'export';
+			}}
+		>
 			<Download size={16} />
-		</Popover.Trigger>
-		<Popover.Content class="motion-popover export-menu" align="end" sideOffset={12}>
-			<div class="popover-heading">Export composition</div>
-			<Button variant="ghost" disabled={busy} onclick={() => onExport('native')}>
-				Native project · all assets
-			</Button>
-			<Button variant="ghost" disabled={busy} onclick={() => onExport('svg')}>
-				Current frame · SVG
-			</Button>
-			<Button variant="ghost" disabled={busy} onclick={() => onExport('lottie')}>
-				Lottie animation
-			</Button>
-			<Button variant="ghost" disabled={busy} onclick={() => onExport('mp4')}>
-				<Film size={14} /> MP4 video · H.264
-			</Button>
-			<small>
-				MP4 records the full composition in real time. Text and SVG are rasterized in Lottie; native
-				projects preserve all editable properties.
-			</small>
-		</Popover.Content>
-	</Popover.Root>
+		</Button>
+		{#if popover === 'export'}<div
+				id="export-popover"
+				class="motion-popover export-menu"
+				role="dialog"
+				tabindex="-1"
+				aria-label="Export composition"
+			>
+				<div class="popover-heading">Export composition</div>
+				<Button variant="ghost" disabled={busy} onclick={() => onExport('native')}>
+					Native project · all assets
+				</Button>
+				<Button variant="ghost" disabled={busy} onclick={() => onExport('svg')}>
+					Current frame · SVG
+				</Button>
+				<Button variant="ghost" disabled={busy} onclick={() => onExport('lottie')}>
+					Lottie animation
+				</Button>
+				<Button variant="ghost" disabled={busy} onclick={() => onExport('mp4')}>
+					<Film size={14} /> MP4 video · H.264
+				</Button>
+				<small>
+					MP4 records the full composition in real time. Text and SVG are rasterized in Lottie;
+					native projects preserve all editable properties.
+				</small>
+			</div>{/if}
+	</div>
 </div>
 
 <style>
@@ -192,6 +233,18 @@
 		width: 1px;
 		background: var(--line-bright);
 		margin: 0 3px;
+	}
+	.popover-anchor {
+		position: relative;
+		display: flex;
+	}
+	:global(.motion-popover) {
+		position: absolute;
+		top: calc(100% + 17px);
+		right: 0;
+		z-index: 20;
+		display: flex;
+		flex-direction: column;
 	}
 	.floating-toolbar :global(.webmcp-trigger) {
 		position: relative;

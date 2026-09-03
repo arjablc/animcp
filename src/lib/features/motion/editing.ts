@@ -1,4 +1,4 @@
-import { check, evaluate, propertyBounds, type Layer, type Value } from './model';
+import { check, evaluate, type Layer, type Value } from './model';
 import type { Operation } from './commands';
 /** Seed the original pose when auto-key starts a previously unanimated track after frame zero. */
 export function propertyEdits(

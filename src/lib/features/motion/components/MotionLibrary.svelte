@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { listMotion, saveMotion, deleteMotion } from '../storage';
 	import { importNative } from '../assets';
 	import { createProject, uid } from '../model';
@@ -40,7 +41,7 @@
 			p.revision = 0;
 			p.updatedAt = new Date().toISOString();
 			await saveMotion(p);
-			await goto(`/motion/${p.id}`);
+			await goto(resolve('/motion/[id]', { id: p.id }));
 		} catch (e) {
 			error = String(e);
 		} finally {
@@ -54,7 +55,7 @@
 		try {
 			const p = createProject(name.trim() || 'Untitled motion', { width, height, fps, background });
 			await saveMotion(p);
-			await goto(`/motion/${p.id}`);
+			await goto(resolve('/motion/[id]', { id: p.id }));
 		} catch (e) {
 			error = String(e);
 		} finally {
@@ -81,9 +82,9 @@
 
 <main>
 	<nav>
-		<a class="brand" href="/">ani<span>MCP</span><small>MOTION STUDIO</small></a><a
+		<a class="brand" href={resolve('/')}>ani<span>MCP</span><small>MOTION STUDIO</small></a><a
 			class="back"
-			href="/">← Home</a
+			href={resolve('/')}>← Home</a
 		>
 	</nav>
 	<section class="project-actions">
@@ -126,7 +127,7 @@
 				>
 				<label
 					>Frame rate<select bind:value={fps}
-						>{#each [12, 15, 24, 30, 60] as rate}<option value={rate}>{rate} fps</option
+						>{#each [12, 15, 24, 30, 60] as rate (rate)}<option value={rate}>{rate} fps</option
 							>{/each}</select
 					></label
 				>
@@ -165,8 +166,8 @@
 			{#if projects.length === 0}<button class="new" onclick={() => (creating = true)}
 					><span>＋</span>Your first composition starts here</button
 				>{/if}
-			{#each projects as p}<article>
-					<a href={`/motion/${p.id}`}
+			{#each projects as p (p.id)}<article>
+					<a href={resolve('/motion/[id]', { id: p.id })}
 						><div class="thumb" style:background={p.composition.background}>
 							<b>{String(p.layerCount).padStart(2, '0')}</b><small>MOTION LAYERS</small>
 						</div>
@@ -183,7 +184,8 @@
 			</div>
 		</div>
 		<div class="template-grid">
-			{#each templates as template}<a href={`/motion/template-${template.id}`}
+			{#each templates as template (template.id)}<a
+					href={resolve('/motion/[id]', { id: `template-${template.id}` })}
 					><strong>{template.name} ↗</strong>
 					<p>{template.description}</p></a
 				>{/each}

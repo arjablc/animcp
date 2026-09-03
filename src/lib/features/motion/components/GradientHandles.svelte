@@ -116,7 +116,7 @@
 		vector-effect="non-scaling-stroke"
 		pointer-events="none"
 	/>
-	{#each points as point}<circle
+	{#each points as point (point.label)}<circle
 			role="button"
 			tabindex="0"
 			aria-label={point.label}

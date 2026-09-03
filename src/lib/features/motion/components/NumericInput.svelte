@@ -34,7 +34,7 @@
 		if (disabled || editing || e.button !== 0) return;
 		onbegin?.();
 		drag = { x: e.clientX, initial: value, value, moved: false };
-		e.currentTarget instanceof HTMLElement && e.currentTarget.setPointerCapture(e.pointerId);
+		if (e.currentTarget instanceof HTMLElement) e.currentTarget.setPointerCapture(e.pointerId);
 	}
 	function move(e: PointerEvent) {
 		if (!drag) return;

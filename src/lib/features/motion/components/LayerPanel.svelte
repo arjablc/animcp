@@ -1,8 +1,7 @@
 <script lang="ts">
-	import * as Sidebar from '$lib/components/ui/sidebar';
-	import * as Tabs from '$lib/components/ui/tabs';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { resolve } from '$app/paths';
 	import {
 		Layers,
 		Activity,
@@ -24,12 +23,14 @@
 		ArrowUp,
 		ArrowDown,
 		ArrowLeft,
-		Check
+		Check,
+		PanelLeft
 	} from '@lucide/svelte';
 	import NumericInput from './NumericInput.svelte';
 	import type { Layer } from '../model';
 	import type { MotionSession } from '../session.svelte';
-	let { session, open }: { session: MotionSession; open: boolean } = $props();
+	let { session, open, onToggle }: { session: MotionSession; open: boolean; onToggle: () => void } =
+		$props();
 	let tab = $state('layers'),
 		dragId = $state<string | null>(null),
 		target = $state<string | null>(null),
@@ -91,7 +92,25 @@
 		session.select(e.shiftKey ? [...new Set([...session.context.selectedLayerIds, id])] : [id]);
 	}
 
-	const sidebar = Sidebar.useSidebar();
+	const tabItems = [
+		{ id: 'layers', icon: Layers, label: 'Layers' },
+		{ id: 'activity', icon: Activity, label: 'Activity' },
+		{ id: 'composition', icon: Settings2, label: 'Composition' }
+	];
+	function tabKey(event: KeyboardEvent, index: number) {
+		if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+		event.preventDefault();
+		const next =
+			event.key === 'Home'
+				? 0
+				: event.key === 'End'
+					? tabItems.length - 1
+					: (index + (event.key === 'ArrowLeft' ? -1 : 1) + tabItems.length) % tabItems.length;
+		tab = tabItems[next].id;
+		(
+			(event.currentTarget as HTMLElement).parentElement?.children[next] as HTMLElement | undefined
+		)?.focus();
+	}
 	type TreeRow = { layer: Layer; depth: number; hasChildren: boolean };
 	const rows = $derived.by(() => {
 		const childrenOf = (parentId?: string) =>
@@ -161,41 +180,63 @@
 	}
 </script>
 
-<Sidebar.Root collapsible="icon" class="editor-sidebar"
-	><Sidebar.Header class="editor-sidebar-header"
-		><div class="project-heading">
-			{#if open}<a href="/" aria-label="Back to projects" title="Back to projects"
+<aside id="layer-sidebar" class="editor-sidebar" class:collapsed={!open} aria-label="Layers panel">
+	<header class="editor-sidebar-header">
+		<div class="project-heading">
+			{#if open}<a href={resolve('/')} aria-label="Back to projects" title="Back to projects"
 					><ArrowLeft size={15} /></a
-				>{/if}{#if open}<span>ani<b>MCP</b></span>{/if}<Sidebar.Trigger
+				>{/if}{#if open}<span>ani<b>MCP</b></span>{/if}<Button
+				variant="ghost"
+				size="icon-sm"
 				class="editor-icon"
+				aria-controls="layer-sidebar"
+				aria-expanded={open}
+				aria-label="Toggle left sidebar"
 				title="Toggle left sidebar"
-			/>
+				onclick={onToggle}><PanelLeft /></Button
+			>
 		</div>
 		{#if open}<Input
 				aria-label="Project name"
 				class="project-name"
 				value={session.project.name}
 				onchange={(e) => safe(() => session.run('rename_project', { name: e.currentTarget.value }))}
-			/>{/if}</Sidebar.Header
-	><Sidebar.Content class="editor-sidebar-content"
-		><Tabs.Root bind:value={tab} class={open ? 'panel-tabs' : 'panel-tabs collapsed'}
-			><Tabs.List class="panel-tab-list"
-				>{#each [{ id: 'layers', icon: Layers, label: 'Layers' }, { id: 'activity', icon: Activity, label: 'Activity' }, { id: 'composition', icon: Settings2, label: 'Composition' }] as item}<Tabs.Trigger
-						value={item.id}
+			/>{/if}
+	</header>
+	<div class="editor-sidebar-content">
+		<div class={open ? 'panel-tabs' : 'panel-tabs collapsed'}>
+			<div class="panel-tab-list" role="tablist" aria-label="Sidebar views">
+				{#each tabItems as item, index (item.id)}<button
+						type="button"
+						role="tab"
+						id={`tab-${item.id}`}
+						aria-controls={`panel-${item.id}`}
+						aria-selected={tab === item.id}
+						tabindex={tab === item.id ? 0 : -1}
+						data-state={tab === item.id ? 'active' : 'inactive'}
 						aria-label={item.label}
 						title={item.label}
 						class="panel-tab"
 						onclick={() => {
-							if (!open) sidebar.setOpen(true);
-						}}><item.icon size={16} /></Tabs.Trigger
-					>{/each}</Tabs.List
-			>{#if open}<Tabs.Content value="layers" class="panel-tab-content"
-					><div class="panel-heading">Layers <span>{session.project.layers.length}</span></div>
-						<div class="layer-list">
-							{#each rows as row (row.layer.id)}{@const l = row.layer}<div
-									class="layer-row"
-									class:group-row={l.type === 'group'}
-									class:child-row={row.depth > 0}
+							tab = item.id;
+							if (!open) onToggle();
+						}}
+						onkeydown={(event) => tabKey(event, index)}><item.icon size={16} /></button
+					>{/each}
+			</div>
+			{#if open && tab === 'layers'}<div
+					id="panel-layers"
+					role="tabpanel"
+					aria-labelledby="tab-layers"
+					class="panel-tab-content"
+				>
+					<div class="panel-heading">Layers <span>{session.project.layers.length}</span></div>
+					<div class="layer-list">
+						{#each rows as row (row.layer.id)}{@const l = row.layer}
+							<div
+								class="layer-row"
+								class:group-row={l.type === 'group'}
+								class:child-row={row.depth > 0}
 								class:active={session.context.selectedLayerIds.includes(l.id)}
 								class:drop-before={target === l.id && !after}
 								class:drop-after={target === l.id && after}
@@ -211,9 +252,10 @@
 									target = null;
 								}}
 							>
-									<div class="tree-gutter" style:width={`${row.depth * 14}px`} aria-hidden="true">
-										{#if row.depth > 0}<CornerDownRight size={13} />{/if}
-									</div>{#if l.type === 'group'}<button
+								<div class="tree-gutter" style:width={`${row.depth * 14}px`} aria-hidden="true">
+									{#if row.depth > 0}<CornerDownRight size={13} />{/if}
+								</div>
+								{#if l.type === 'group'}<button
 										class="group-toggle"
 										aria-label={`${collapsedGroups.includes(l.id) ? 'Expand' : 'Collapse'} ${l.name}`}
 										title={collapsedGroups.includes(l.id) ? 'Expand group' : 'Collapse group'}
@@ -221,11 +263,16 @@
 										onclick={(event) => {
 											event.stopPropagation();
 											toggleGroup(l.id);
-										}}>{#if collapsedGroups.includes(l.id)}<ChevronRight size={13} />{:else}<ChevronDown
-											size={13}
-											/>{/if}</button>{:else}<span class="group-toggle-spacer"></span>{/if}<GripVertical size={12} class="grip" /><button
-										class="layer-select"
-										title={`${l.name} · drag to reorder · Alt+↑/↓ to move`}
+										}}
+										>{#if collapsedGroups.includes(l.id)}<ChevronRight
+												size={13}
+											/>{:else}<ChevronDown size={13} />{/if}</button
+									>{:else}<span class="group-toggle-spacer"></span>{/if}<GripVertical
+									size={12}
+									class="grip"
+								/><button
+									class="layer-select"
+									title={`${l.name} · drag to reorder · Alt+↑/↓ to move`}
 									onclick={(e) => selectLayer(e, l.id)}
 									onkeydown={(e) => {
 										if (e.altKey && ['ArrowUp', 'ArrowDown'].includes(e.key)) {
@@ -233,7 +280,9 @@
 											nudge(l.id, e.key === 'ArrowUp' ? 1 : -1);
 										}
 									}}
-									>{#if l.type === 'group'}<Folder size={14} />{:else if l.type === 'text'}<Type size={14} />{:else if l.type === 'rectangle'}<Square
+									>{#if l.type === 'group'}<Folder size={14} />{:else if l.type === 'text'}<Type
+											size={14}
+										/>{:else if l.type === 'rectangle'}<Square
 											size={14}
 										/>{:else if l.type === 'ellipse'}<Circle size={14} />{:else}<Image
 											size={14}
@@ -268,13 +317,13 @@
 					{#if !rows.length}<p class="hint">
 							Add a shape, text, or import artwork to get started.
 						</p>{:else}<div class="layer-footer">
-								<Button
-									variant="ghost"
-									size="sm"
-									class="group-action"
-									disabled={session.context.selectedLayerIds.length < 2}
-									onclick={groupSelected}><FolderPlus size={13} /> Group</Button
-								><span>Drag to reorder</span><Button
+							<Button
+								variant="ghost"
+								size="sm"
+								class="group-action"
+								disabled={session.context.selectedLayerIds.length < 2}
+								onclick={groupSelected}><FolderPlus size={13} /> Group</Button
+							><span>Drag to reorder</span><Button
 								variant="ghost"
 								size="icon-xs"
 								aria-label="Raise layer"
@@ -289,21 +338,33 @@
 								disabled={!session.context.selectedLayerIds.length}
 								onclick={() => nudge(session.context.selectedLayerIds[0], -1)}><ArrowDown /></Button
 							>
-						</div>{/if}</Tabs.Content
-				><Tabs.Content value="activity" class="panel-tab-content"
-					><div class="panel-heading">Activity <span>{session.history.length}</span></div>
-					{#each [...session.history].reverse() as entry}<div class="activity-entry">
+						</div>{/if}
+				</div>{:else if open && tab === 'activity'}<div
+					id="panel-activity"
+					role="tabpanel"
+					aria-labelledby="tab-activity"
+					class="panel-tab-content"
+				>
+					<div class="panel-heading">Activity <span>{session.history.length}</span></div>
+					{#each [...session.history].reverse() as entry (entry.after.revision)}<div
+							class="activity-entry"
+						>
 							<span class:agent={entry.actor === 'agent'}
 								>{entry.actor === 'agent' ? 'Agent' : 'You'}</span
 							>
 							<p>{entry.label}</p>
 						</div>{/each}{#if !session.history.length}<p class="hint">
 							Your edits and agent changes appear here.
-						</p>{/if}</Tabs.Content
-				><Tabs.Content value="composition" class="panel-tab-content"
-					><div class="panel-heading">Composition</div>
+						</p>{/if}
+				</div>{:else if open && tab === 'composition'}<div
+					id="panel-composition"
+					role="tabpanel"
+					aria-labelledby="tab-composition"
+					class="panel-tab-content"
+				>
+					<div class="panel-heading">Composition</div>
 					<div class="composition-fields">
-						{#each [{ key: 'width', label: 'Width', max: 8192 }, { key: 'height', label: 'Height', max: 8192 }, { key: 'fps', label: 'Frame rate', max: 120 }, { key: 'durationFrames', label: 'Duration (frames)', max: 36000 }] as field}<label
+						{#each [{ key: 'width', label: 'Width', max: 8192 }, { key: 'height', label: 'Height', max: 8192 }, { key: 'fps', label: 'Frame rate', max: 120 }, { key: 'durationFrames', label: 'Duration (frames)', max: 36000 }] as field (field.key)}<label
 								>{field.label}<NumericInput
 									label={`Composition ${field.key}`}
 									value={session.project.composition[field.key as 'width']}
@@ -321,13 +382,14 @@
 									safe(() => session.run('set_composition', { background: e.currentTarget.value }))}
 							/></label
 						>
-					</div></Tabs.Content
-				>{/if}</Tabs.Root
-		></Sidebar.Content
-	><Sidebar.Footer class="editor-sidebar-footer"
-		>{#if open}<Check size={12} /><span>{session.saveStatus}</span>{/if}</Sidebar.Footer
-	></Sidebar.Root
->
+					</div>
+				</div>{/if}
+		</div>
+	</div>
+	<footer class="editor-sidebar-footer">
+		{#if open}<Check size={12} /><span>{session.saveStatus}</span>{/if}
+	</footer>
+</aside>
 
 <style>
 	.project-heading {
@@ -353,7 +415,23 @@
 	.project-heading a:hover {
 		color: var(--paper);
 	}
-	:global(.editor-sidebar-header) {
+	.editor-sidebar {
+		width: 230px;
+		min-width: 230px;
+		min-height: 0;
+		border-right: 1px solid var(--line);
+		background: var(--panel);
+		display: flex;
+		flex-direction: column;
+		transition:
+			width 0.2s,
+			min-width 0.2s;
+	}
+	.editor-sidebar.collapsed {
+		width: 46px;
+		min-width: 46px;
+	}
+	.editor-sidebar-header {
 		padding: 12px !important;
 		gap: 10px !important;
 	}
@@ -366,7 +444,9 @@
 		font-size: 12px !important;
 		color: var(--paper) !important;
 	}
-	:global(.editor-sidebar-content) {
+	.editor-sidebar-content {
+		flex: 1;
+		min-height: 0;
 		overflow: hidden !important;
 	}
 	:global(.panel-tabs) {
@@ -601,7 +681,7 @@
 		background: transparent;
 		border-radius: 4px;
 	}
-	:global(.editor-sidebar-footer) {
+	.editor-sidebar-footer {
 		display: flex !important;
 		flex-direction: row !important;
 		align-items: center;
@@ -610,5 +690,19 @@
 		color: var(--muted-foreground);
 		font-size: var(--type-meta);
 		border-top: 1px solid var(--line);
+	}
+	@media (max-width: 767px) {
+		.editor-sidebar {
+			position: fixed;
+			inset: 0 auto 0 0;
+			z-index: 31;
+			width: min(280px, 85vw);
+			min-width: min(280px, 85vw);
+			box-shadow: 12px 0 32px #0008;
+		}
+		.editor-sidebar.collapsed {
+			transform: translateX(-100%);
+			visibility: hidden;
+		}
 	}
 </style>

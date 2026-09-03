@@ -306,7 +306,6 @@ describe('layer groups', () => {
 			frame: 10,
 			value: 60
 		});
-		const nextGroup = animated.layers.find((layer) => layer.id === group.id)!;
 		const nextChild = animated.layers.find((layer) => layer.id === first.id)!;
 		expect(nextChild.tracks.positionX.keys.map((entry) => entry.frame)).toEqual([0, 20]);
 		expect(ancestorTransform(animated, nextChild, 10)).toContain('translate(100 60)');

@@ -63,30 +63,33 @@ describe('editor auto-key', () => {
 		]);
 		expect(track.keys).toHaveLength(2);
 	});
-	it.each(['opacity', 'drawStart', 'drawEnd'])('keeps %s edits visible with auto-key off', (property) => {
-		let p = fixture();
-		const layer = p.layers[0];
-		if (property.startsWith('draw')) {
-			layer.type = 'path';
-			layer.paths = [
-				[
-					{ type: 'M', x: 0, y: 0 },
-					{ type: 'L', x: 100, y: 100 }
-				]
+	it.each(['opacity', 'drawStart', 'drawEnd'])(
+		'keeps %s edits visible with auto-key off',
+		(property) => {
+			let p = fixture();
+			const layer = p.layers[0];
+			if (property.startsWith('draw')) {
+				layer.type = 'path';
+				layer.paths = [
+					[
+						{ type: 'M', x: 0, y: 0 },
+						{ type: 'L', x: 100, y: 100 }
+					]
+				];
+				layer.tracks.drawStart = { defaultValue: 0, keys: [] };
+				layer.tracks.drawEnd = { defaultValue: 1, keys: [] };
+			}
+			layer.tracks[property].keys = [
+				{ id: `${property}-start`, frame: 0, value: 0.25, easing: presets.linear },
+				{ id: `${property}-end`, frame: 20, value: 1, easing: presets.linear }
 			];
-			layer.tracks.drawStart = { defaultValue: 0, keys: [] };
-			layer.tracks.drawEnd = { defaultValue: 1, keys: [] };
+			p = transact(p, propertyEdits(p.layers[0], { [property]: 0.5 }, 20, false)).project;
+			const track = p.layers[0].tracks[property];
+			expect(track.keys).toHaveLength(2);
+			expect(track.keys.map((key) => key.value)).toEqual([0.25, 0.5]);
+			expect(evaluate(track, 20)).toBe(0.5);
 		}
-		layer.tracks[property].keys = [
-			{ id: `${property}-start`, frame: 0, value: 0.25, easing: presets.linear },
-			{ id: `${property}-end`, frame: 20, value: 1, easing: presets.linear }
-		];
-		p = transact(p, propertyEdits(p.layers[0], { [property]: 0.5 }, 20, false)).project;
-		const track = p.layers[0].tracks[property];
-		expect(track.keys).toHaveLength(2);
-		expect(track.keys.map((key) => key.value)).toEqual([0.25, 0.5]);
-		expect(evaluate(track, 20)).toBe(0.5);
-	});
+	);
 	it('deletes keyframes without deleting their layer and ignores held Delete repeats', () => {
 		let p = fixture();
 		p = transact(p, propertyEdits(p.layers[0], { rotation: 20 }, 20, true)).project;

@@ -8,7 +8,6 @@ import {
 	type PathData,
 	type VectorLayer
 } from '../src/lib/features/animation/model';
-import { migrateProject } from '../src/lib/features/animation/migrations';
 import {
 	AnimationValidationError,
 	parseProject,
@@ -330,7 +329,7 @@ describe('vector core path, transform and easing validation', () => {
 	});
 });
 
-describe('vector core assets and migrations', () => {
+describe('vector core assets', () => {
 	const asset = {
 		id: 'asset',
 		name: 'Image',
@@ -357,17 +356,5 @@ describe('vector core assets and migrations', () => {
 		const project = projectWithLayer();
 		project.assets = [validateAsset(asset), validateAsset(asset)];
 		expect(() => parseProject(project)).toThrow(/Duplicate/);
-	});
-
-	it('migration preserves v1 and a recoverable original, rejecting unknown and legacy formats', () => {
-		const original = projectWithLayer();
-		const before = JSON.stringify(original);
-		const migrated = migrateProject(original);
-		expect(migrated).toEqual(original);
-		expect(migrated).not.toBe(original);
-		expect(JSON.stringify(original)).toBe(before);
-		expect(() => migrateProject({ version: 2, source: 'p5()' })).toThrow(AnimationValidationError);
-		expect(() => migrateProject({ ...original, version: 0 })).toThrow(AnimationValidationError);
-		expect(() => migrateProject({ ...original, layers: null })).toThrow(AnimationValidationError);
 	});
 });

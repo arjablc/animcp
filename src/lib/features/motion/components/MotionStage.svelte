@@ -1145,7 +1145,7 @@
 							r={controlSize}
 							onpointerdown={(event) => startTransform(event, selected, 'rotate')}
 						/>
-						{#if layer.type !== 'path'}{#each [{ handle: 'nw' as TransformHandle, x: box.x, y: box.y }, { handle: 'n' as TransformHandle, x: box.x + box.width / 2, y: box.y }, { handle: 'ne' as TransformHandle, x: box.x + box.width, y: box.y }, { handle: 'e' as TransformHandle, x: box.x + box.width, y: box.y + box.height / 2 }, { handle: 'se' as TransformHandle, x: box.x + box.width, y: box.y + box.height }, { handle: 's' as TransformHandle, x: box.x + box.width / 2, y: box.y + box.height }, { handle: 'sw' as TransformHandle, x: box.x, y: box.y + box.height }, { handle: 'w' as TransformHandle, x: box.x, y: box.y + box.height / 2 }] as control}
+						{#if layer.type !== 'path'}{#each [{ handle: 'nw' as TransformHandle, x: box.x, y: box.y }, { handle: 'n' as TransformHandle, x: box.x + box.width / 2, y: box.y }, { handle: 'ne' as TransformHandle, x: box.x + box.width, y: box.y }, { handle: 'e' as TransformHandle, x: box.x + box.width, y: box.y + box.height / 2 }, { handle: 'se' as TransformHandle, x: box.x + box.width, y: box.y + box.height }, { handle: 's' as TransformHandle, x: box.x + box.width / 2, y: box.y + box.height }, { handle: 'sw' as TransformHandle, x: box.x, y: box.y + box.height }, { handle: 'w' as TransformHandle, x: box.x, y: box.y + box.height / 2 }] as control (control.handle)}
 								<rect
 									class:corner={control.handle.length === 2}
 									class="resize-handle"

@@ -45,7 +45,7 @@
 				<div class="tool-schema">
 					<div class="schema-title">Input</div>
 					{#if tool.inputSchema.properties}
-						{#each Object.entries(tool.inputSchema.properties) as [name, schema]}
+						{#each Object.entries(tool.inputSchema.properties) as [name, schema] (name)}
 							<div class="schema-row" class:required={tool.inputSchema.required?.includes(name)}>
 								<code>{name}</code><span>{schemaType(schema)}</span>
 								{#if tool.inputSchema.required?.includes(name)}<b>required</b>{/if}

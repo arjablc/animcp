@@ -84,6 +84,7 @@ export class MotionSession {
 		this.project = {
 			...structuredClone(entry.before),
 			revision: this.project.revision + 1,
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- immediately serialized timestamp
 			updatedAt: new Date().toISOString()
 		};
 		this.history = this.history.slice(0, -1);
@@ -97,6 +98,7 @@ export class MotionSession {
 		this.project = {
 			...structuredClone(entry.after),
 			revision: this.project.revision + 1,
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- immediately serialized timestamp
 			updatedAt: new Date().toISOString()
 		};
 		this.future = this.future.slice(0, -1);
@@ -122,6 +124,7 @@ export class MotionSession {
 		this.context = { ...this.context, currentFrame: frame, revision: this.context.revision + 1 };
 	}
 	private reconcile() {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local membership lookup, never observed
 		const keys = new Set(
 			this.project.layers.flatMap((l) =>
 				Object.values(l.tracks).flatMap((t) => t.keys.map((k) => k.id))

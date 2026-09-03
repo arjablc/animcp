@@ -420,6 +420,7 @@ export function validateProject(input: unknown): Project {
 		check(typeof l.visible === 'boolean' && typeof l.locked === 'boolean', 'Invalid layer flags');
 		string(l.text, 10000);
 		string(l.fontFamily, 200);
+		// eslint-disable-next-line no-control-regex -- reject ASCII control characters in persisted input
 		check(!/[\u0000-\u001f]/.test(l.fontFamily), 'Invalid font family');
 		number(l.fontWeight, 1, 1000);
 		number(l.fontSize, 1, 1000);

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { ArrowRight, Check, SlidersHorizontal, Wrench } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
 </script>
 
 <svelte:head>
-	<title>AniMCP — A local-first motion timeline</title>
 	<meta
 		name="description"
 		content="Create, revise, and export motion graphics in a local-first timeline—with optional WebMCP agent collaboration."
@@ -12,8 +12,8 @@
 
 <main class="landing">
 	<nav>
-		<a class="brand" href="/">ani<span>MCP</span></a>
-		<a class="nav-link" href="/projects">Projects <ArrowRight size={15} /></a>
+		<a class="brand" href={resolve('/')}>ani<span>MCP</span></a>
+		<a class="nav-link" href={resolve('/projects')}>Projects <ArrowRight size={15} /></a>
 	</nav>
 
 	<section class="hero">
@@ -23,7 +23,9 @@
 				A local-first timeline for creating, revising, and exporting motion graphics. Work on your
 				own, or use WebMCP to bring an agent into the composition when it helps.
 			</p>
-			<a class="hero-action" href="/projects">Create a project <ArrowRight size={17} /></a>
+			<a class="hero-action" href={resolve('/projects')}
+				>Create a project <ArrowRight size={17} /></a
+			>
 		</div>
 		<div class="motion-study" aria-label="An example motion timeline">
 			<div class="study-top"><span>PRODUCT INTRO</span><span>00:01:08</span></div>
@@ -48,7 +50,9 @@
 				can inspect the live composition and make focused, undoable timeline edits—not guess at
 				pixels.
 			</p>
-			<a class="text-link" href="/projects">Create or open a project <ArrowRight size={15} /></a>
+			<a class="text-link" href={resolve('/projects')}
+				>Create or open a project <ArrowRight size={15} /></a
+			>
 		</div>
 		<ol class="agent-steps">
 			<li>
@@ -113,7 +117,7 @@
 
 	<footer>
 		<span>ANIMCP</span><span>A local-first motion timeline for humans + agents.</span><a
-			href="/projects">Projects</a
+			href={resolve('/projects')}>Projects</a
 		>
 	</footer>
 </main>

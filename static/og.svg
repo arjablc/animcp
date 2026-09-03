@@ -1,16 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
-  <title id="title">ANIMCP — Ideas into motion.</title>
-  <desc id="desc">A motion graphics timeline for humans and agents.</desc>
-  <rect width="1200" height="630" fill="#10120f"/>
-  <circle cx="1010" cy="-20" r="310" fill="#262d19" opacity=".72"/>
-  <path d="M0 548H1200M0 584H1200M760 0v630M824 0v630M888 0v630M952 0v630M1016 0v630M1080 0v630M1144 0v630" stroke="#292d27" stroke-width="1"/>
-  <path d="M760 165h300M760 235h388M760 305h254M760 375h330M760 445h388" stroke="#3b4038" stroke-width="2"/>
-  <path d="M788 165h122M940 235h170M812 305h92M970 375h100M846 445h214" stroke="#dfff4f" stroke-width="5" stroke-linecap="round"/>
-  <g fill="#dfff4f"><rect x="900" y="156" width="18" height="18" transform="rotate(45 909 165)"/><rect x="1100" y="226" width="18" height="18" transform="rotate(45 1109 235)"/><rect x="895" y="296" width="18" height="18" transform="rotate(45 904 305)"/><rect x="1060" y="366" width="18" height="18" transform="rotate(45 1069 375)"/><rect x="1050" y="436" width="18" height="18" transform="rotate(45 1059 445)"/></g>
-  <rect x="72" y="74" width="82" height="6" fill="#ff775f"/>
-  <text x="72" y="154" fill="#92978c" font-family="monospace" font-size="22" letter-spacing="5">MOTION / 01</text>
-  <text x="68" y="294" fill="#f2f1e8" font-family="Arial, sans-serif" font-size="112" font-weight="800" letter-spacing="-8">IDEAS</text>
-  <text x="68" y="394" fill="#dfff4f" font-family="Arial, sans-serif" font-size="112" font-weight="800" letter-spacing="-8">INTO MOTION.</text>
-  <text x="72" y="484" fill="#92978c" font-family="Arial, sans-serif" font-size="25">A motion graphics timeline for humans and agents.</text>
-  <text x="72" y="574" fill="#f2f1e8" font-family="monospace" font-size="22" letter-spacing="4">ANIMCP</text>
+  <title id="title">AniMCP — Motion, on your terms.</title>
+  <desc id="desc">A local-first motion graphics timeline for humans and agents.</desc>
+  <rect width="1200" height="630" fill="#0d1522"/>
+
+  <g transform="translate(70 72)">
+    <text x="0" y="26" fill="#eef4fb" font-family="Arial, sans-serif" font-size="30" font-weight="700" letter-spacing="-1">ani<tspan fill="#8fcad8">MCP</tspan></text>
+    <text x="0" y="194" fill="#eef4fb" font-family="Arial, sans-serif" font-size="78" font-weight="700" letter-spacing="-3">Motion, on</text>
+    <text x="0" y="274" fill="#8fcad8" font-family="Arial, sans-serif" font-size="78" font-weight="700" letter-spacing="-3">your terms.</text>
+    <text x="3" y="336" fill="#afc0d1" font-family="Arial, sans-serif" font-size="22">A local-first motion timeline for humans + agents.</text>
+    <rect x="2" y="382" width="190" height="50" rx="8" fill="#8fcad8"/>
+    <text x="25" y="414" fill="#0d1522" font-family="Arial, sans-serif" font-size="16" font-weight="700">CREATE MOTION</text>
+    <path d="M162 407h12m-5-5 5 5-5 5" fill="none" stroke="#0d1522" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <g transform="translate(690 64)">
+    <rect width="440" height="502" rx="16" fill="#142238" stroke="#38506a" stroke-width="2"/>
+    <text x="22" y="35" fill="#9eb5cb" font-family="monospace" font-size="11" font-weight="700" letter-spacing="1.5">PRODUCT INTRO</text>
+    <text x="348" y="35" fill="#9eb5cb" font-family="monospace" font-size="11" font-weight="700" letter-spacing="1.5">00:01:08</text>
+    <rect x="20" y="55" width="400" height="310" rx="9" fill="#b6e7ee"/>
+    <text x="48" y="161" fill="#102034" font-family="Arial, sans-serif" font-size="72" font-weight="700" letter-spacing="-5">IDEA</text>
+    <text x="135" y="311" fill="#346078" font-family="Arial, sans-serif" font-size="68" font-weight="700" letter-spacing="-5">MOTION</text>
+    <circle cx="243" cy="211" r="22" fill="#ff846d"/>
+    <circle cx="243" cy="211" r="9" fill="#102034"/>
+
+    <g font-family="monospace" font-size="10" fill="#aebfd0">
+      <text x="22" y="404">Title</text>
+      <text x="22" y="438">Wordmark</text>
+      <text x="22" y="472">Cards</text>
+    </g>
+    <rect x="109" y="395" width="229" height="10" rx="2" fill="#8fcad8"/>
+    <rect x="158" y="429" width="232" height="10" rx="2" fill="#759fc9"/>
+    <rect x="211" y="463" width="187" height="10" rx="2" fill="#ff846d"/>
+    <path d="M94 380v105" stroke="#ff846d" stroke-width="2"/>
+    <path d="m89 380 5-7 5 7z" fill="#ff846d"/>
+  </g>
 </svg>
