@@ -18,6 +18,9 @@ export type Tool = {
 	name: string;
 	description: string;
 	inputSchema: Schema;
+	annotations?: {
+		readOnlyHint?: boolean;
+	};
 	execute: (input: Input) => Promise<unknown>;
 };
 export type ModelContext = {

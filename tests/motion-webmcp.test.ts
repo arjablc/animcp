@@ -76,6 +76,16 @@ describe('motion WebMCP contract', () => {
 			])
 		);
 		expect(tools.every((tool) => tool.inputSchema && tool.description && tool.execute)).toBe(true);
+		expect(
+			tools
+				.filter((tool) => tool.name.startsWith('get_') || tool.name === 'find_elements')
+				.every((tool) => tool.annotations?.readOnlyHint === true)
+		).toBe(true);
+		expect(
+			tools
+				.filter((tool) => !tool.name.startsWith('get_') && tool.name !== 'find_elements')
+				.every((tool) => tool.annotations?.readOnlyHint !== true)
+		).toBe(true);
 		dispose();
 		expect(unreg).toHaveBeenCalledTimes(tools.length);
 		expect(await tools[0].execute({})).toMatchObject({ ok: false });

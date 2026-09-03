@@ -84,6 +84,7 @@ export function createWebMcpRuntime(session: MotionSession, signal: AbortSignal)
 		session,
 		read: (tool: Omit<Tool, 'execute'>, execute: (input: Input) => unknown | Promise<unknown>) => ({
 			...tool,
+			annotations: { ...tool.annotations, readOnlyHint: true },
 			execute: (input: Input) => run(tool.name, tool.inputSchema, input, execute)
 		}),
 		write: (tool: Omit<Tool, 'execute'>, actions: readonly string[]) => ({
