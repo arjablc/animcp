@@ -66,6 +66,17 @@ describe('motion WebMCP contract', () => {
 			}
 		} as never);
 		expect(registered.some((t) => t.name === 'find_elements')).toBe(true);
+		expect(registered).toHaveLength(34);
+		expect(registered.map((t) => t.name)).not.toEqual(
+			expect.arrayContaining([
+				'undo',
+				'redo',
+				'playback',
+				'set_editor_context',
+				'copy_easing',
+				'duplicate_keyframes'
+			])
+		);
 		expect(registered.every((t) => t.inputSchema && t.description && t.execute)).toBe(true);
 		dispose();
 		expect(unreg).toHaveBeenCalledTimes(registered.length);

@@ -4,6 +4,23 @@
 	import type { MotionSession } from '../session.svelte';
 	import { propertyEdits, previewLayer as sessionPreviewLayer } from '../editing';
 	import {
+		intersects,
+		layerBounds,
+		localPoint,
+		rotatePoint,
+		selectionBounds
+	} from '../stage-geometry';
+	import {
+		editPathControl,
+		normalizeDraft,
+		pathDataString,
+		penAnchor,
+		previousPoint,
+		subpathData,
+		type DraftSubpath,
+		type PathControl
+	} from '../stage-path';
+	import {
 		ancestorOpacity,
 		ancestorTransform,
 		effectivelyVisible,
@@ -25,15 +42,6 @@
 	} = $props();
 	type TransformHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'rotate';
 	type Viewport = { x: number; y: number; zoom: number };
-	type PenAnchor = {
-		x: number;
-		y: number;
-		inX: number;
-		inY: number;
-		outX: number;
-		outY: number;
-	};
-	type DraftSubpath = { anchors: PenAnchor[]; closed: boolean };
 
 	let stage: SVGSVGElement;
 	let stageWrap: HTMLDivElement;
@@ -82,7 +90,7 @@
 		layerId: string;
 		pathIndex: number;
 		commandIndex: number;
-		control: 'anchor' | 'x1' | 'x2';
+		control: PathControl;
 		start: { x: number; y: number };
 		paths: PathData[];
 		revision: number;
@@ -194,79 +202,16 @@
 		return activeDraftIndex === null ? null : draftSubpaths[activeDraftIndex];
 	}
 
-	function collapsedAnchor(point: { x: number; y: number }): PenAnchor {
-		return {
-			x: point.x,
-			y: point.y,
-			inX: point.x,
-			inY: point.y,
-			outX: point.x,
-			outY: point.y
-		};
-	}
-
 	function gestureAnchor() {
 		if (!penGesture) return null;
-		const handle = penPreview ?? penGesture.start;
-		const dx = handle.x - penGesture.start.x,
-			dy = handle.y - penGesture.start.y;
-		return {
-			x: penGesture.start.x,
-			y: penGesture.start.y,
-			inX: penGesture.start.x - dx,
-			inY: penGesture.start.y - dy,
-			outX: penGesture.start.x + dx,
-			outY: penGesture.start.y + dy
-		};
-	}
-
-	function subpathData(subpath: DraftSubpath, preview = false): PathData {
-		const anchors = [...subpath.anchors];
-		const gesture = preview ? gestureAnchor() : null;
-		if (gesture) anchors.push(gesture);
-		else if (preview && penPreview && anchors.length) anchors.push(collapsedAnchor(penPreview));
-		if (!anchors.length) return [];
-		const commands: PathData = [{ type: 'M', x: anchors[0].x, y: anchors[0].y }];
-		for (let index = 1; index < anchors.length; index++) {
-			const previous = anchors[index - 1],
-				anchor = anchors[index];
-			commands.push({
-				type: 'C',
-				x1: previous.outX,
-				y1: previous.outY,
-				x2: anchor.inX,
-				y2: anchor.inY,
-				x: anchor.x,
-				y: anchor.y
-			});
-		}
-		if (subpath.closed && anchors.length > 2) {
-			const last = anchors.at(-1)!,
-				first = anchors[0];
-			commands.push({
-				type: 'C',
-				x1: last.outX,
-				y1: last.outY,
-				x2: first.inX,
-				y2: first.inY,
-				x: first.x,
-				y: first.y
-			});
-			commands.push({ type: 'Z' });
-		}
-		return commands;
+		return penAnchor(penGesture.start, penPreview ?? penGesture.start);
 	}
 
 	function draftD(subpath: DraftSubpath, preview = false) {
-		return subpathData(subpath, preview)
-			.map((command) =>
-				command.type === 'Z'
-					? 'Z'
-					: command.type === 'C'
-						? `C ${command.x1} ${command.y1} ${command.x2} ${command.y2} ${command.x} ${command.y}`
-						: `${command.type} ${command.x} ${command.y}`
-			)
-			.join(' ');
+		const next = preview
+			? (gestureAnchor() ?? (penPreview ? penAnchor(penPreview) : undefined))
+			: undefined;
+		return pathDataString(subpathData(subpath, next));
 	}
 
 	function startPen(event: PointerEvent) {
@@ -299,16 +244,7 @@
 			finishPen();
 			return;
 		}
-		const dx = release.x - gesture.start.x,
-			dy = release.y - gesture.start.y;
-		const anchor = {
-			x: gesture.start.x,
-			y: gesture.start.y,
-			inX: gesture.start.x - dx,
-			inY: gesture.start.y - dy,
-			outX: gesture.start.x + dx,
-			outY: gesture.start.y + dy
-		};
+		const anchor = penAnchor(gesture.start, release);
 		if (!subpath) {
 			draftSubpaths = [...draftSubpaths, { anchors: [anchor], closed: false }];
 			activeDraftIndex = draftSubpaths.length - 1;
@@ -337,51 +273,6 @@
 		finishPen();
 	}
 
-	function normalizedDraft(paths: PathData[]) {
-		const values = paths.flatMap((path) =>
-			path.flatMap((command) =>
-				command.type === 'Z'
-					? []
-					: command.type === 'C'
-						? [
-								{ x: command.x, y: command.y },
-								{ x: command.x1, y: command.y1 },
-								{ x: command.x2, y: command.y2 }
-							]
-						: [{ x: command.x, y: command.y }]
-			)
-		);
-		const left = Math.min(...values.map((point) => point.x)),
-			top = Math.min(...values.map((point) => point.y)),
-			right = Math.max(...values.map((point) => point.x)),
-			bottom = Math.max(...values.map((point) => point.y));
-		const pathsLocal = paths.map((path) =>
-			path.map((command) => {
-				if (command.type === 'Z') return command;
-				if (command.type === 'C')
-					return {
-						...command,
-						x: command.x - left,
-						y: command.y - top,
-						x1: command.x1 - left,
-						y1: command.y1 - top,
-						x2: command.x2 - left,
-						y2: command.y2 - top
-					};
-				return { ...command, x: command.x - left, y: command.y - top };
-			})
-		);
-		return {
-			paths: pathsLocal,
-			bounds: {
-				positionX: left,
-				positionY: top,
-				width: Math.max(1, right - left),
-				height: Math.max(1, bottom - top)
-			}
-		};
-	}
-
 	function finishPen() {
 		const paths = draftSubpaths
 			.filter((subpath) => subpath.anchors.length >= 2)
@@ -391,7 +282,7 @@
 			return;
 		}
 		try {
-			const geometry = normalizedDraft(paths);
+			const geometry = normalizeDraft(paths);
 			const result = session.run(
 				'create_layer',
 				{ type: 'path', name: 'Path', ...geometry },
@@ -416,20 +307,12 @@
 		onToolChange('move');
 	}
 
-	function previousPoint(path: PathData, index: number) {
-		for (let current = index - 1; current >= 0; current--) {
-			const command = path[current];
-			if (command.type !== 'Z') return { x: command.x, y: command.y };
-		}
-		return null;
-	}
-
 	function startPathEdit(
 		event: PointerEvent,
 		layer: Layer,
 		pathIndex: number,
 		commandIndex: number,
-		control: 'anchor' | 'x1' | 'x2'
+		control: PathControl
 	) {
 		if (layer.locked || !layer.paths) return;
 		event.preventDefault();
@@ -451,61 +334,18 @@
 		const edit = pathEdit;
 		if (!edit) return;
 		const current = pathPoint(event);
-		const paths = copyPaths(edit.paths);
-		const path = paths[edit.pathIndex];
-		const command = path?.[edit.commandIndex];
+		const command = edit.paths[edit.pathIndex]?.[edit.commandIndex];
 		if (!command || command.type === 'Z') return;
 		const dx = current.x - edit.start.x,
 			dy = current.y - edit.start.y;
-		if (edit.control === 'anchor') {
-			command.x += dx;
-			command.y += dy;
-			if (command.type === 'C') {
-				command.x2 += dx;
-				command.y2 += dy;
-			}
-			const next = path[edit.commandIndex + 1];
-			if (next?.type === 'C') {
-				next.x1 += dx;
-				next.y1 += dy;
-			}
-			if (edit.commandIndex === 0 && path.at(-1)?.type === 'Z') {
-				const closing = path.at(-2);
-				if (closing?.type === 'C') {
-					closing.x += dx;
-					closing.y += dy;
-					closing.x2 += dx;
-					closing.y2 += dy;
-				}
-			}
-		} else if (command.type === 'C') {
-			if (edit.control === 'x1') {
-				command.x1 += dx;
-				command.y1 += dy;
-				const anchor = previousPoint(path, edit.commandIndex);
-				const previous = path[edit.commandIndex - 1];
-				const closing = path.at(-1)?.type === 'Z' ? path.at(-2) : undefined;
-				const opposite =
-					previous?.type === 'C' ? previous : closing?.type === 'C' ? closing : undefined;
-				if (anchor && opposite) {
-					opposite.x2 = anchor.x * 2 - command.x1;
-					opposite.y2 = anchor.y * 2 - command.y1;
-				}
-			} else {
-				command.x2 += dx;
-				command.y2 += dy;
-				const next =
-					path[edit.commandIndex + 1]?.type === 'C'
-						? path[edit.commandIndex + 1]
-						: path.at(-1)?.type === 'Z' && path[1]?.type === 'C'
-							? path[1]
-							: undefined;
-				if (next?.type === 'C') {
-					next.x1 = command.x * 2 - command.x2;
-					next.y1 = command.y * 2 - command.y2;
-				}
-			}
-		}
+		const paths = editPathControl(
+			edit.paths,
+			edit.pathIndex,
+			edit.commandIndex,
+			edit.control,
+			dx,
+			dy
+		);
 		pathEdit = { ...edit, start: current, paths };
 	}
 
@@ -524,32 +364,6 @@
 		} catch (error) {
 			session.error = String(error);
 		}
-	}
-
-	function rotatePoint(
-		point: { x: number; y: number },
-		center: { x: number; y: number },
-		degrees: number
-	) {
-		const radians = (degrees * Math.PI) / 180;
-		const dx = point.x - center.x,
-			dy = point.y - center.y;
-		return {
-			x: center.x + dx * Math.cos(radians) - dy * Math.sin(radians),
-			y: center.y + dx * Math.sin(radians) + dy * Math.cos(radians)
-		};
-	}
-
-	function localPoint(
-		point: { x: number; y: number },
-		base: Record<'positionX' | 'positionY' | 'width' | 'height' | 'rotation', number>
-	) {
-		const center = {
-			x: base.positionX + base.width / 2,
-			y: base.positionY + base.height / 2
-		};
-		const unrotated = rotatePoint(point, center, -base.rotation);
-		return { x: unrotated.x - base.positionX, y: unrotated.y - base.positionY };
 	}
 
 	function displayLayer(layer: Layer) {
@@ -756,75 +570,6 @@
 		else if (marquee) marquee = { ...marquee, endX: current.x, endY: current.y };
 	}
 
-	function bounds(layer: Layer, frame: number) {
-		const x = value(layer, 'positionX', frame),
-			y = value(layer, 'positionY', frame),
-			width = Math.max(0.001, value(layer, 'width', frame) * value(layer, 'scaleX', frame)),
-			height = Math.max(0.001, value(layer, 'height', frame) * value(layer, 'scaleY', frame));
-		return { x, y, width, height };
-	}
-
-	function visualBounds(layer: Layer, frame: number) {
-		const x = value(layer, 'positionX', frame),
-			y = value(layer, 'positionY', frame),
-			width = Math.max(0.001, value(layer, 'width', frame)),
-			height = Math.max(0.001, value(layer, 'height', frame)),
-			scaleX = value(layer, 'scaleX', frame),
-			scaleY = value(layer, 'scaleY', frame),
-			rotation = (value(layer, 'rotation', frame) * Math.PI) / 180,
-			center = { x: x + width / 2, y: y + height / 2 };
-		const corners = [
-			{ x, y },
-			{ x: x + width, y },
-			{ x: x + width, y: y + height },
-			{ x, y: y + height }
-		].map((corner) => {
-			const dx = (corner.x - center.x) * scaleX,
-				dy = (corner.y - center.y) * scaleY;
-			return {
-				x: center.x + dx * Math.cos(rotation) - dy * Math.sin(rotation),
-				y: center.y + dx * Math.sin(rotation) + dy * Math.cos(rotation)
-			};
-		});
-		const left = Math.min(...corners.map((corner) => corner.x)),
-			top = Math.min(...corners.map((corner) => corner.y)),
-			right = Math.max(...corners.map((corner) => corner.x)),
-			bottom = Math.max(...corners.map((corner) => corner.y));
-		return { x: left, y: top, width: right - left, height: bottom - top };
-	}
-
-	function selectionBounds(layer: Layer, frame: number) {
-		if (layer.type !== 'group')
-			return {
-				x: 0,
-				y: 0,
-				width: Math.max(0.001, value(layer, 'width', frame)),
-				height: Math.max(0.001, value(layer, 'height', frame))
-			};
-		const children = session.project.layers.filter(
-			(child) => child.parentId === layer.id && child.visible
-		);
-		if (!children.length)
-			return {
-				x: 0,
-				y: 0,
-				width: Math.max(0.001, value(layer, 'width', frame)),
-				height: Math.max(0.001, value(layer, 'height', frame))
-			};
-		const childBounds = children.map((child) => visualBounds(child, frame));
-		const left = Math.min(...childBounds.map((child) => child.x)),
-			top = Math.min(...childBounds.map((child) => child.y)),
-			right = Math.max(...childBounds.map((child) => child.x + child.width)),
-			bottom = Math.max(...childBounds.map((child) => child.y + child.height));
-		return { x: left, y: top, width: right - left, height: bottom - top };
-	}
-
-	function intersects(a: ReturnType<typeof bounds>, b: ReturnType<typeof bounds>) {
-		return (
-			a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
-		);
-	}
-
 	function dragOffset(id: string) {
 		return dragging?.layers.some((layer) => layer.id === id) ? dragging : null;
 	}
@@ -898,7 +643,8 @@
 		}
 		const ids = session.project.layers
 			.filter(
-				(layer) => layer.visible && intersects(bounds(layer, session.context.currentFrame), box)
+				(layer) =>
+					layer.visible && intersects(layerBounds(layer, session.context.currentFrame), box)
 			)
 			.map((layer) => layer.id);
 		session.select(
@@ -1113,7 +859,7 @@
 		{#if selected && !selected.locked && effectivelyVisible(session.project, selected)}{@const layer =
 				displayLayer(selected)}
 			{@const frame = session.context.currentFrame}
-			{@const box = selectionBounds(layer, frame)}
+			{@const box = selectionBounds(session.project, layer, frame)}
 			<g class="selection-controls" transform={ancestorTransform(session.project, selected, frame)}>
 				<g transform={transform(layer, frame)}>
 					<rect class="selection-box" x={box.x} y={box.y} width={box.width} height={box.height} />

@@ -9,7 +9,6 @@
 		Eye,
 		EyeOff,
 		LockKeyhole,
-		UnlockKeyhole,
 		GripVertical,
 		Type,
 		Square,
@@ -27,8 +26,8 @@
 		PanelLeft
 	} from '@lucide/svelte';
 	import NumericInput from './NumericInput.svelte';
-	import type { Layer } from '../model';
 	import type { MotionSession } from '../session.svelte';
+	import { flattenLayerTree } from '../layer-tree';
 	let { session, open, onToggle }: { session: MotionSession; open: boolean; onToggle: () => void } =
 		$props();
 	let tab = $state('layers'),
@@ -111,18 +110,7 @@
 			(event.currentTarget as HTMLElement).parentElement?.children[next] as HTMLElement | undefined
 		)?.focus();
 	}
-	type TreeRow = { layer: Layer; depth: number; hasChildren: boolean };
-	const rows = $derived.by(() => {
-		const childrenOf = (parentId?: string) =>
-			session.project.layers.filter((layer) => layer.parentId === parentId).reverse();
-		const visit = (parentId: string | undefined, depth: number): TreeRow[] =>
-			childrenOf(parentId).flatMap((layer) => {
-				const children = childrenOf(layer.id);
-				const row = { layer, depth, hasChildren: children.length > 0 };
-				return collapsedGroups.includes(layer.id) ? [row] : [row, ...visit(layer.id, depth + 1)];
-			});
-		return visit(undefined, 0);
-	});
+	const rows = $derived(flattenLayerTree(session.project.layers, collapsedGroups));
 	function toggleGroup(id: string) {
 		collapsedGroups = collapsedGroups.includes(id)
 			? collapsedGroups.filter((entry) => entry !== id)
@@ -183,8 +171,10 @@
 <aside id="layer-sidebar" class="editor-sidebar" class:collapsed={!open} aria-label="Layers panel">
 	<header class="editor-sidebar-header">
 		<div class="project-heading">
-			{#if open}<a href={resolve('/')} aria-label="Back to projects" title="Back to projects"
-					><ArrowLeft size={15} /></a
+			{#if open}<a
+					href={resolve('/projects')}
+					aria-label="Back to projects"
+					title="Back to projects"><ArrowLeft size={15} /></a
 				>{/if}{#if open}<span>ani<b>MCP</b></span>{/if}<Button
 				variant="ghost"
 				size="icon-sm"
@@ -259,7 +249,7 @@
 										class="group-toggle"
 										aria-label={`${collapsedGroups.includes(l.id) ? 'Expand' : 'Collapse'} ${l.name}`}
 										title={collapsedGroups.includes(l.id) ? 'Expand group' : 'Collapse group'}
-										disabled={!row.hasChildren}
+										disabled={!row.childCount}
 										onclick={(event) => {
 											event.stopPropagation();
 											toggleGroup(l.id);
@@ -468,11 +458,14 @@
 	}
 	:global(.panel-tab) {
 		flex: 1;
+		display: flex;
 		height: 32px !important;
 		border-radius: 5px !important;
 		color: var(--muted-foreground) !important;
 		background: transparent !important;
 		border: 0 !important;
+		justify-content: center;
+		align-items: center;
 		box-shadow: none !important;
 	}
 	:global(.panel-tab[data-state='active']) {

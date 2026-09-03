@@ -253,7 +253,7 @@
 	}
 </script>
 
-<svelte:head><title>AniMCP — Motion studio</title></svelte:head>
+<svelte:head><title>Editor - animcp</title></svelte:head>
 <svelte:window
 	onkeydown={keyboard}
 	onpointermove={resizeTimeline}

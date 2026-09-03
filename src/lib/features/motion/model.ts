@@ -143,7 +143,7 @@ export function createProject(name = 'Untitled motion', settings: ProjectSetting
 			height: settings.height ?? 540,
 			fps: settings.fps ?? 30,
 			durationFrames: 150,
-			background: settings.background ?? '#101722'
+			background: settings.background?.trim() || '#101722'
 		},
 		layers: [],
 		assets: []

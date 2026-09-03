@@ -53,7 +53,12 @@
 		busy = true;
 		error = '';
 		try {
-			const p = createProject(name.trim() || 'Untitled motion', { width, height, fps, background });
+			const p = createProject(name.trim() || 'Untitled motion', {
+				width,
+				height,
+				fps,
+				background
+			});
 			await saveMotion(p);
 			await goto(resolve('/motion/[id]', { id: p.id }));
 		} catch (e) {
@@ -74,7 +79,7 @@
 </script>
 
 <svelte:head
-	><title>AniMCP — Projects</title><meta
+	><title>Projects - animcp</title><meta
 		name="description"
 		content="Create, import, and return to motion compositions stored on this device."
 	/></svelte:head
@@ -136,7 +141,8 @@
 						><input type="color" bind:value={background} /><input
 							aria-label="Canvas color hex"
 							bind:value={background}
-							pattern="^#[0-9a-fA-F]{6}$"
+							maxlength="7"
+							spellcheck="false"
 						/></span
 					></label
 				>

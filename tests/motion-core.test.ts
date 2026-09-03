@@ -53,6 +53,11 @@ describe('motion tracks', () => {
 		});
 	});
 
+	it('accepts a trimmed canvas color from project creation', () => {
+		const project = createProject('Trimmed color', { background: ' #102030 ' });
+		expect(validateProject(project).composition.background).toBe('#102030');
+	});
+
 	it('creates static multi-subpath layers with animatable draw tracks', () => {
 		const p = createProject();
 		const path = createLayer('path', 'Signature');

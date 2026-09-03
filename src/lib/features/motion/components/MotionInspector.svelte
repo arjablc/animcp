@@ -2,15 +2,11 @@
 	import { tick } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import { Textarea } from '$lib/components/ui/textarea';
 	import {
 		Copy,
 		Trash2,
 		SlidersHorizontal,
-		Type,
-		Italic,
 		Plus,
-		X,
 		PanelRightClose,
 		PanelRightOpen,
 		MousePointer2
@@ -19,8 +15,8 @@
 	import { animationSegments } from '../editing';
 	import PropertyField from './PropertyField.svelte';
 	import EasingInspector from './EasingInspector.svelte';
-	import NumericInput from './NumericInput.svelte';
-	import FontPicker from './FontPicker.svelte';
+	import TypographySection from './TypographySection.svelte';
+	import FillStrokeSection from './FillStrokeSection.svelte';
 	let { session }: { session: MotionSession } = $props();
 	let open = $state(true);
 	let inspectorScroll = $state<HTMLDivElement>();
@@ -180,140 +176,13 @@
 							/>{/if}
 					</div>
 				</section>
-				{#if l.type === 'text'}<section>
-						<h3>Typography <Type size={12} /></h3>
-						<Textarea
-							aria-label="Text content"
-							value={l.text}
-							disabled={l.locked}
-							onchange={(e) => change({ text: e.currentTarget.value })}
-						/><FontPicker {session} layer={l} />
-						<div class="font-options">
-							<span title="Font size"><Type size={13} /></span><NumericInput
-								label="Font size"
-								value={l.fontSize}
-								min={1}
-								max={1000}
-								disabled={l.locked}
-								oncommit={(v) => change({ fontSize: v })}
-							/><select
-								aria-label="Font weight"
-								value={l.fontWeight}
-								disabled={l.locked}
-								onchange={(e) => change({ fontWeight: Number(e.currentTarget.value) })}
-								>{#each [100, 200, 300, 400, 500, 600, 700, 800, 900] as w (w)}<option value={w}
-										>{w}</option
-									>{/each}</select
-							><Button
-								variant="ghost"
-								size="icon-xs"
-								aria-label="Italic"
-								aria-pressed={l.fontStyle === 'italic'}
-								title="Italic"
-								disabled={l.locked}
-								onclick={() =>
-									change({ fontStyle: l.fontStyle === 'italic' ? 'normal' : 'italic' })}
-								><Italic /></Button
-							>
-							<NumericInput
-								label="Line height"
-								value={l.lineHeight}
-								min={0.1}
-								max={10}
-								step={0.05}
-								disabled={l.locked}
-								oncommit={(v) => change({ lineHeight: v })}
-							/>
-							<NumericInput
-								label="Letter spacing"
-								value={l.letterSpacing}
-								min={-100}
-								max={1000}
-								disabled={l.locked}
-								oncommit={(v) => change({ letterSpacing: v })}
-							/>
-							<select
-								class="alignment-select"
-								aria-label="Text alignment"
-								value={l.textAlign}
-								disabled={l.locked}
-								onchange={(e) => change({ textAlign: e.currentTarget.value })}
-							>
-								<option value="left">Align left</option><option value="center">Align center</option
-								><option value="right">Align right</option>
-							</select>
-						</div>
-					</section>{/if}{#if l.type !== 'png' && l.type !== 'svg' && l.type !== 'group'}<section>
-						<h3>Fill & stroke</h3>
-						<select
-							aria-label="Paint type"
-							value={l.paint.type}
-							disabled={l.locked}
-							onchange={(e) =>
-								safe(() =>
-									session.run('set_paint', { layerId: l.id, type: e.currentTarget.value })
-								)}
-							><option value="solid">Solid color</option><option value="linear"
-								>Linear gradient</option
-							><option value="radial">Radial gradient</option></select
-						>{#if l.paint.type === 'solid'}<PropertyField
-								{session}
-								layer={l}
-								property="fill"
-								label="Fill color"
-							/>{:else}{#each l.paint.stops as stop, index (stop)}<div class="gradient-stop">
-									<div class="stop-heading">
-										Stop {index + 1}<Button
-											variant="ghost"
-											size="icon-xs"
-											aria-label={`Remove stop ${index + 1}`}
-											title="Remove stop"
-											disabled={l.locked || l.paint.stops.length <= 2}
-											onclick={() =>
-												safe(() =>
-													session.run('delete_gradient_stop', { layerId: l.id, stopId: stop })
-												)}><X /></Button
-										>
-									</div>
-									{#each ['color', 'offset', 'opacity'] as part (part)}<PropertyField
-											{session}
-											layer={l}
-											property={`gradient.stop.${stop}.${part}`}
-											label={part}
-										/>{/each}
-								</div>{/each}<Button
-								variant="ghost"
-								size="sm"
-								class="text-action"
-								disabled={l.locked}
-								onclick={() =>
-									safe(() =>
-										session.run('add_gradient_stop', {
-											layerId: l.id,
-											offset: 0.5,
-											color: '#ffffff'
-										})
-									)}><Plus size={12} /> Add stop</Button
-							>
-							<div class="property-grid">
-								{#each l.paint.type === 'linear' ? ['startX', 'startY', 'endX', 'endY'] : ['centerX', 'centerY', 'focalX', 'focalY', 'radius'] as prop (prop)}<PropertyField
-										{session}
-										layer={l}
-										property={`gradient.${prop}`}
-										label={prop}
-									/>{/each}
-							</div>{/if}<PropertyField
-							{session}
-							layer={l}
-							property="paintOpacity"
-							label="Paint opacity"
-						/><PropertyField
-							{session}
-							layer={l}
-							property="stroke"
-							label="Stroke color"
-						/><PropertyField {session} layer={l} property="strokeWidth" label="Stroke width" />
-					</section>{/if}{#if hasOpenSubpaths}<section>
+				{#if l.type === 'text'}<TypographySection
+						{session}
+						layer={l}
+					/>{/if}{#if l.type !== 'png' && l.type !== 'svg' && l.type !== 'group'}<FillStrokeSection
+						{session}
+						layer={l}
+					/>{/if}{#if hasOpenSubpaths}<section>
 						<h3>Draw</h3>
 						<div class="property-grid">
 							<PropertyField {session} layer={l} property="drawStart" label="Start" />
@@ -465,76 +334,6 @@
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 1px 9px;
-	}
-	.inspector :global(textarea) {
-		background: var(--ink);
-		color: var(--paper);
-		border: 1px solid var(--line-bright);
-		border-radius: 5px;
-		min-height: 62px;
-		font-size: var(--type-control);
-		margin-bottom: 9px;
-	}
-	.font-options {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-		align-items: center;
-		gap: 8px;
-		margin-top: 10px;
-		color: var(--muted-foreground);
-	}
-	.font-options > :global(.property-field) {
-		min-width: 0;
-	}
-	.font-options > span {
-		display: none;
-	}
-	.font-options :global(input) {
-		width: 58px;
-	}
-	.font-options select {
-		width: 100%;
-		margin-bottom: 0;
-	}
-	.font-options .alignment-select {
-		grid-column: 1 / -1;
-	}
-	.font-options :global(button) {
-		color: var(--muted-foreground);
-		border-radius: 4px;
-	}
-	.font-options :global(button[aria-pressed='true']) {
-		background: var(--accent);
-		color: var(--acid);
-	}
-	select {
-		width: 100%;
-		font-size: var(--type-label);
-		background: var(--panel-raised);
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		color: var(--paper);
-		padding: 6px 8px;
-		margin-bottom: 6px;
-	}
-	.font-options select {
-		margin: 0;
-	}
-	.gradient-stop {
-		margin-top: 8px;
-		padding: 7px 0;
-		border-top: 1px solid var(--line);
-	}
-	.stop-heading {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		font-size: var(--type-meta);
-		color: var(--muted-foreground);
-	}
-	.stop-heading :global(button) {
-		color: var(--muted-foreground);
-		border-radius: 4px;
 	}
 	:global(.text-action) {
 		text-transform: none !important;

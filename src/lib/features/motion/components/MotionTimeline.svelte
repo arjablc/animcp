@@ -1,23 +1,10 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
-	import {
-		Play,
-		Pause,
-		SkipBack,
-		ChevronDown,
-		ChevronRight,
-		ZoomIn,
-		ZoomOut,
-		Repeat2,
-		Film,
-		CornerDownRight,
-		Maximize2,
-		Minimize2,
-		GripVertical
-	} from '@lucide/svelte';
+	import { ChevronDown, ChevronRight, CornerDownRight, GripVertical } from '@lucide/svelte';
 	import type { MotionSession } from '../session.svelte';
 	import type { Layer, Key } from '../model';
 	import { animationSegments, keyframeMoveBounds } from '../editing';
+	import { flattenLayerTree } from '../layer-tree';
+	import TimelineTransport from './TimelineTransport.svelte';
 	let {
 		session,
 		height,
@@ -58,20 +45,7 @@
 			property: string;
 		} | null>(null);
 	const labelWidth = 190;
-	type TimelineRow = { layer: Layer; depth: number; childCount: number };
-	const timelineRows = $derived.by(() => {
-		const childrenOf = (parentId?: string) =>
-			session.project.layers.filter((layer) => layer.parentId === parentId).reverse();
-		const visit = (parentId: string | undefined, depth: number): TimelineRow[] =>
-			childrenOf(parentId).flatMap((layer) => {
-				const children = childrenOf(layer.id);
-				return [
-					{ layer, depth, childCount: children.length },
-					...(collapsed.includes(layer.id) ? [] : visit(layer.id, depth + 1))
-				];
-			});
-		return visit(undefined, 0);
-	});
+	const timelineRows = $derived(flattenLayerTree(session.project.layers, collapsed));
 	const duration = $derived(session.project.composition.durationFrames);
 	const trackWidth = $derived(duration * zoom + 80);
 	const tickStep = $derived(zoom < 4 ? 30 : zoom < 8 ? 15 : 10);
@@ -302,73 +276,23 @@
 	style:height={`${height}px`}
 	style:flex-basis={`${height}px`}
 >
-	<div class="timeline-toolbar">
-		<div class="transport">
-			<Button
-				variant="ghost"
-				size="icon-xs"
-				class="editor-icon"
-				aria-label="Go to start"
-				title="Go to start"
-				onclick={() => {
-					session.playing = false;
-					session.seek(0);
-				}}><SkipBack /></Button
-			><Button
-				variant="ghost"
-				size="icon-sm"
-				class="timeline-play"
-				aria-label={session.playing ? 'Pause' : 'Play'}
-				title="Play / pause · Space"
-				onclick={() => (session.playing = !session.playing)}
-				>{#if session.playing}<Pause size={14} />{:else}<Play size={14} />{/if}</Button
-			><span class="timecode"
-				>{String(
-					Math.floor(session.context.currentFrame / session.project.composition.fps)
-				).padStart(2, '0')}:{String(
-					session.context.currentFrame % session.project.composition.fps
-				).padStart(2, '0')}<small> / {duration - 1}f</small></span
-			>
-		</div>
-		<span class="timeline-title"><Film size={13} /> Timeline</span><Button
-			variant="ghost"
-			size="icon-xs"
-			class="editor-icon timeline-view-toggle"
-			aria-label={expanded ? 'Restore timeline view' : 'Expand timeline view'}
-			title={expanded ? 'Restore timeline view' : 'Timeline view'}
-			onclick={onToggleView}
-			>{#if expanded}<Minimize2 />{:else}<Maximize2 />{/if}</Button
-		><label class:enabled={session.autoKey} class="auto-key"
-			><input
-				type="checkbox"
-				aria-label="Auto-key"
-				class="auto-checkbox"
-				checked={session.autoKey}
-				onchange={(event) => (session.autoKey = event.currentTarget.checked)}
-			/><span>Auto-key</span></label
-		><span class="timeline-spacer"></span><span class="fps"
-			><Repeat2 size={12} />{session.project.composition.fps} fps</span
-		>
-		<div class="timeline-zoom">
-			<Button
-				variant="ghost"
-				size="icon-xs"
-				class="editor-icon"
-				aria-label="Zoom out timeline"
-				title="Zoom out"
-				disabled={zoom <= 2}
-				onclick={() => (zoom = Math.max(2, zoom - 2))}><ZoomOut /></Button
-			><span>{zoom}px/f</span><Button
-				variant="ghost"
-				size="icon-xs"
-				class="editor-icon"
-				aria-label="Zoom in timeline"
-				title="Zoom in"
-				disabled={zoom >= 24}
-				onclick={() => (zoom = Math.min(24, zoom + 2))}><ZoomIn /></Button
-			>
-		</div>
-	</div>
+	<TimelineTransport
+		playing={session.playing}
+		currentFrame={session.context.currentFrame}
+		lastFrame={duration - 1}
+		fps={session.project.composition.fps}
+		autoKey={session.autoKey}
+		{zoom}
+		{expanded}
+		onGoToStart={() => {
+			session.playing = false;
+			session.seek(0);
+		}}
+		onTogglePlaying={() => (session.playing = !session.playing)}
+		onAutoKeyChange={(enabled) => (session.autoKey = enabled)}
+		onZoomChange={(value) => (zoom = value)}
+		{onToggleView}
+	/>
 	<!-- Keyboard focus makes the horizontal scroll region accessible. -->
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
@@ -631,96 +555,6 @@
 	}
 	.timeline.resizing {
 		transition: none;
-	}
-	.timeline-toolbar {
-		height: 44px;
-		min-height: 44px;
-		display: flex;
-		align-items: center;
-		gap: 20px;
-		padding: 0 15px;
-		border-bottom: 1px solid #2b333f;
-	}
-	.transport {
-		display: flex;
-		align-items: center;
-		gap: 5px;
-	}
-	.transport :global(.timeline-play) {
-		background: var(--acid);
-		color: var(--acid-ink);
-		border-radius: 6px;
-		width: 28px;
-		height: 27px;
-		padding: 5px;
-	}
-	.transport :global(.timeline-play:hover) {
-		background: #a4edfb;
-	}
-	.timecode {
-		font: 500 var(--type-label) / 1 var(--mono);
-		color: #c4d0df;
-		margin-left: 6px;
-	}
-	.timecode small {
-		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #677b92;
-	}
-	.timeline-title {
-		display: flex;
-		align-items: center;
-		gap: 7px;
-		font-size: var(--type-label);
-		color: #9bacc0;
-	}
-	:global(.timeline-view-toggle) {
-		margin-left: -8px;
-	}
-	.auto-key {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: var(--type-label);
-		color: #7f90a6;
-		cursor: pointer;
-	}
-	.auto-key.enabled {
-		color: var(--acid);
-	}
-	.auto-checkbox {
-		width: 13px;
-		height: 13px;
-		border: 1px solid #576574;
-		border-radius: 3px;
-		cursor: pointer;
-		background: transparent;
-		accent-color: var(--acid);
-	}
-	.auto-checkbox:checked {
-		background: var(--acid);
-		border-color: var(--acid);
-		color: var(--acid-ink);
-	}
-	.timeline-spacer {
-		flex: 1;
-	}
-	.fps {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #73869d;
-	}
-	.timeline-zoom {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-	}
-	.timeline-zoom > span {
-		font: 400 var(--type-meta) / 1 var(--mono);
-		color: #899bb2;
-		width: 34px;
-		text-align: center;
 	}
 	.timeline-scroll {
 		overflow: auto;
@@ -1077,13 +911,6 @@
 		color: #71859f;
 	}
 	@media (max-width: 900px) {
-		.timeline-toolbar {
-			gap: 12px;
-		}
-		.timeline-title,
-		.fps {
-			display: none;
-		}
 		.timeline {
 			height: 230px;
 			flex-basis: 230px;
