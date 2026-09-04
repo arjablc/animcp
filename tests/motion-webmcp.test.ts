@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createProject, createLayer, uid, presets } from '../src/lib/features/motion/model';
-import { registerMotionTools, type Tool } from '../src/lib/features/motion/webmcp';
+import {
+	refreshMotionTools,
+	registerMotionTools,
+	type Tool
+} from '../src/lib/features/motion/webmcp';
 import { transact } from '../src/lib/features/motion/commands';
 import type { MotionSession } from '../src/lib/features/motion/session.svelte';
 async function fixture() {
@@ -37,15 +41,18 @@ async function fixture() {
 	} as unknown as MotionSession;
 	const tools: Tool[] = [];
 	const unreg = vi.fn();
+	const modelContext = {
+		registerTool: (tool: Tool) => tools.push(tool),
+		unregisterTool: unreg,
+		getTools: () => tools
+	};
 	const dispose = await registerMotionTools(s, {
-		modelContext: {
-			registerTool: (tool: Tool) => tools.push(tool),
-			unregisterTool: unreg
-		}
+		modelContext
 	} as never);
 	return {
 		s,
 		tools,
+		modelContext,
 		unreg,
 		dispose,
 		call: (name: string, input: Record<string, unknown>) =>
@@ -59,7 +66,7 @@ async function fixture() {
 }
 describe('motion WebMCP contract', () => {
 	it('registers executable tools on the document model context and disposes them', async () => {
-		const { tools, unreg, dispose } = await fixture();
+		const { s, tools, unreg, dispose } = await fixture();
 		expect(tools).toHaveLength(10);
 		expect(tools.map((tool) => tool.name)).toEqual(
 			expect.arrayContaining([
@@ -76,6 +83,7 @@ describe('motion WebMCP contract', () => {
 			])
 		);
 		expect(tools.every((tool) => tool.inputSchema && tool.description && tool.execute)).toBe(true);
+		expect(s.webmcpTools).toEqual(tools);
 		expect(
 			tools
 				.filter((tool) => tool.name.startsWith('get_') || tool.name === 'find_elements')
@@ -89,6 +97,13 @@ describe('motion WebMCP contract', () => {
 		dispose();
 		expect(unreg).toHaveBeenCalledTimes(tools.length);
 		expect(await tools[0].execute({})).toMatchObject({ ok: false });
+	});
+	it('refreshes the catalog from the live model-context tool list', async () => {
+		const { s, tools, modelContext } = await fixture();
+		tools.pop();
+		await refreshMotionTools(s, { modelContext } as never);
+		expect(s.webmcpTools).toEqual(tools);
+		expect(s.webmcpTools).toHaveLength(9);
 	});
 	it('reads text, sequences a unique result, and rejects stale edits', async () => {
 		const { s, call } = await fixture();

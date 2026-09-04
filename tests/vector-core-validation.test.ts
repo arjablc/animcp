@@ -92,7 +92,7 @@ describe('vector core model and project validation', () => {
 		['width', 239],
 		['width', 1921],
 		['height', 239],
-		['height', 1081],
+		['height', 1921],
 		['width', 300.5],
 		['background', 'url(https://example.com/a)']
 	])('rejects invalid canvas %s = %s', (field, value) => {

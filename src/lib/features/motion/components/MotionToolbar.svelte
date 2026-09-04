@@ -17,7 +17,7 @@
 	import type { Layer } from '../model';
 	import type { MotionSession } from '../session.svelte';
 	import type { ExportFormat } from '../project-files';
-	import { toolDeclarations } from '../webmcp';
+	import { refreshMotionTools } from '../webmcp';
 	import WebMcpToolCatalog from './WebMcpToolCatalog.svelte';
 
 	let {
@@ -44,7 +44,6 @@
 		activeTool: 'move' | 'pen';
 	} = $props();
 
-	const webmcpTools = Object.values(toolDeclarations);
 	let popover = $state<'webmcp' | 'export' | null>(null);
 	let webmcpTrigger = $state<HTMLElement | null>(null);
 	let exportTrigger = $state<HTMLElement | null>(null);
@@ -58,6 +57,20 @@
 			Math.min((rect?.right ?? 12) - width, window.innerWidth - width - 12)
 		);
 		return `top:${Math.min((rect?.bottom ?? 0) + 12, window.innerHeight - 60)}px;left:${left}px`;
+	}
+
+	async function toggleWebMcpPopover(event: MouseEvent) {
+		event.stopPropagation();
+		if (popover === 'webmcp') {
+			popover = null;
+			return;
+		}
+		popover = 'webmcp';
+		try {
+			await refreshMotionTools(session);
+		} catch (error) {
+			session.webmcp = `WebMCP tool refresh failed: ${String(error)}`;
+		}
 	}
 </script>
 
@@ -165,10 +178,7 @@
 			aria-controls="webmcp-popover"
 			data-popover-trigger
 			bind:ref={webmcpTrigger}
-			onclick={(event) => {
-				event.stopPropagation();
-				popover = popover === 'webmcp' ? null : 'webmcp';
-			}}
+			onclick={toggleWebMcpPopover}
 		>
 			<Bot size={17} />
 			<i class:connected={session.webmcp.includes('registered') || session.webmcp.includes('ready')}
@@ -204,7 +214,7 @@
 		aria-label="WebMCP agent connection"
 	>
 		<p class="webmcp-status">{session.webmcp}</p>
-		<WebMcpToolCatalog tools={webmcpTools} />
+		<WebMcpToolCatalog tools={session.webmcpTools} />
 	</div>{/if}
 {#if popover === 'export'}<div
 		id="export-popover"

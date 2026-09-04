@@ -1,6 +1,7 @@
 import { check, validateProject, type Project, type Value } from './model';
 import { transact, type Context, type History, type Operation } from './commands';
 import { saveMotion } from './storage';
+import type { Tool } from './webmcp-schema';
 export class MotionSession {
 	project = $state.raw<Project>() as Project;
 	context = $state<Context>({
@@ -17,6 +18,7 @@ export class MotionSession {
 	autoKey = $state(false);
 	preview = $state.raw<{ layerId: string; values: Record<string, Value> } | null>(null);
 	webmcp = $state('Connecting…');
+	webmcpTools = $state.raw<Tool[]>([]);
 	history = $state.raw<History[]>([]);
 	future = $state.raw<History[]>([]);
 	private timer: ReturnType<typeof setTimeout> | undefined;

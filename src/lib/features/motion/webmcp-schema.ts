@@ -26,6 +26,7 @@ export type Tool = {
 export type ModelContext = {
 	registerTool: (tool: Tool, options?: { signal: AbortSignal }) => void | Promise<void>;
 	unregisterTool?: (name: string) => void | Promise<void>;
+	getTools: () => Tool[] | Promise<Tool[]>;
 };
 
 const str: Schema = { type: 'string', maxLength: 10000 },

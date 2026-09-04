@@ -38,16 +38,16 @@ function fixture() {
 const run = (p: Project, name: string, input: Record<string, unknown>) =>
 	transact(p, [{ name, input }]).project;
 describe('motion tracks', () => {
-	it('creates a composition with the requested canvas settings', () => {
-		const project = createProject('Portrait intro', {
-			width: 1080,
-			height: 1920,
+	it('creates and validates full-HD canvas settings', () => {
+		const project = createProject('Full HD intro', {
+			width: 1920,
+			height: 1080,
 			fps: 24,
 			background: '#102030'
 		});
-		expect(project.composition).toMatchObject({
-			width: 1080,
-			height: 1920,
+		expect(validateProject(project).composition).toMatchObject({
+			width: 1920,
+			height: 1080,
 			fps: 24,
 			background: '#102030'
 		});

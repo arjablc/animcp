@@ -167,7 +167,7 @@ export function validateCanvas(value: unknown): CanvasSettings {
 	const obj = validateObject(value, ['width', 'height', 'background'], 'canvas');
 	return {
 		width: validateInteger(obj.width, 'canvas.width', 240, 1920),
-		height: validateInteger(obj.height, 'canvas.height', 240, 1080),
+		height: validateInteger(obj.height, 'canvas.height', 240, 1920),
 		background: validateColor(obj.background, 'canvas.background')
 	};
 }

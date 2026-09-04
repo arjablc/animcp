@@ -378,7 +378,7 @@ export function validateProject(input: unknown): Project {
 	const c = p.composition;
 	check(c, 'Missing composition');
 	number(c.width, 240, 1920);
-	number(c.height, 240, 1080);
+	number(c.height, 240, 1920);
 	check([12, 15, 24, 30, 60].includes(c.fps), 'Unsupported FPS');
 	number(c.durationFrames, 1, c.fps * 60);
 	check(Number.isInteger(c.durationFrames), 'Frame count must be an integer');
